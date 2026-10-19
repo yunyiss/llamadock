@@ -294,11 +294,11 @@ mod tests {
 
     #[test]
     fn handles_attached_value_bool_and_unknown() {
-        let text = "llama-server -c4096 -fa --foo bar --custom-flag\n";
+        let text = "llama-server -c4096 -fa on --foo bar --custom-flag\n";
         let model = parse("t.sh", text);
 
         assert_eq!(value_of(&model, "-c").unwrap(), "4096");
-        assert_eq!(value_of(&model, "--flash-attn").unwrap(), "on");
+        assert_eq!(value_of(&model, "-fa").unwrap(), "on");
         assert!(model.unknown.contains(&"--foo".to_string()));
         assert!(model.unknown.contains(&"bar".to_string()));
         assert!(model.unknown.contains(&"--custom-flag".to_string()));
@@ -326,7 +326,7 @@ mod tests {
 
         assert!(model.found);
         assert_eq!(value_of(&model, "-m").unwrap(), "a b.gguf");
-        assert_eq!(value_of(&model, "--flash-attn").unwrap(), "on");
+        assert_eq!(value_of(&model, "-fa").unwrap(), "on");
         assert_eq!(value_of(&model, "--host").unwrap(), "127.0.0.1");
         assert_eq!(value_of(&model, "--port").unwrap(), "8089");
         assert!(model.unknown.is_empty());

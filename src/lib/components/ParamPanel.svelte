@@ -15,13 +15,16 @@
 
   let engineOpen = $state(false);
   let custom = $state("");
+  let onlySet = $state(false);
 
   const engineValue = $derived(workspace.model?.launcher?.exe ?? "");
+  const rows = $derived(workspace.model?.params ?? []);
+  const setCount = $derived(rows.filter((p) => p.present).length);
   const groups = $derived(
     GROUP_ORDER.map((key) => ({
       key,
       label: GROUP_LABELS[key],
-      rows: (workspace.model?.params ?? []).filter((p) => p.group === key),
+      rows: rows.filter((p) => p.group === key && (!onlySet || p.present)),
     })).filter((g) => g.rows.length > 0),
   );
 
@@ -50,6 +53,13 @@
     <div class="empty">解析中…</div>
   {:else}
     {#key workspace.selected}
+      <div class="toolbar">
+        <span class="count">已设置 {setCount} / 共 {rows.length} 项</span>
+        <button class="chip" class:on={onlySet} type="button" onclick={() => (onlySet = !onlySet)}>
+          只看已设置
+        </button>
+      </div>
+
       <!-- 引擎：就是启动行的可执行文件，本身当作可编辑参数 -->
       <section class="group">
         <div class="group-title">引擎</div>
@@ -171,6 +181,21 @@
   .group {
     flex: 0 0 auto;
     margin-bottom: 16px;
+  }
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 0 10px;
+    background: var(--bg);
+  }
+  .count {
+    font-size: 11px;
+    color: var(--faint);
   }
   .group-title {
     margin-bottom: 8px;

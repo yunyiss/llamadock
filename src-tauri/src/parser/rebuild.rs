@@ -253,16 +253,17 @@ mod tests {
     }
 
     #[test]
-    fn toggles_bool_to_off() {
+    fn bare_valued_flag_gets_explicit_value() {
+        // -fa 在 b11714 必须带取值：裸写要转成显式取值
         let text = "llama-server -fa\n";
-        let out = apply_edits(text, &[edit("--flash-attn", true, Some("off"))]).unwrap();
-        assert_eq!(out, "llama-server --no-flash-attn\n");
+        let out = apply_edits(text, &[edit("-fa", true, Some("off"))]).unwrap();
+        assert_eq!(out, "llama-server -fa off\n");
     }
 
     #[test]
     fn toggles_explicit_bool_value() {
         let text = "llama-server -fa on --port 8089\n";
-        let out = apply_edits(text, &[edit("--flash-attn", true, Some("off"))]).unwrap();
+        let out = apply_edits(text, &[edit("-fa", true, Some("off"))]).unwrap();
         assert_eq!(out, "llama-server -fa off --port 8089\n");
     }
 
