@@ -25,14 +25,9 @@
     const active = tip;
     if (!active) return;
 
+    // 位置跟随：布局在无滚动情况下发生变化（拖动日志面板、窗口缩放）时重新对齐
     let raf = 0;
     const track = () => {
-      const rect = active.anchor.getBoundingClientRect();
-      // 锚点滚出可视区域：直接关闭，避免气泡停在顶部
-      if (rect.bottom < 0 || rect.top > window.innerHeight) {
-        closeTip();
-        return;
-      }
       place(active.anchor);
       raf = requestAnimationFrame(track);
     };
@@ -47,14 +42,26 @@
       if (active.anchor.contains(target) || panel?.contains(target)) return;
       closeTip();
     };
+    // 内部滚动容器（如参数面板）的 scroll 不冒泡，必须用 capture 才能收到。
+    // 内容一旦滚动，锚点可能被容器裁掉、但它的矩形仍在视口内，只有关闭气泡
+    // 才不会让气泡停在错误位置压住顶栏 / 标签栏 / 面板头部。
+    const onScroll = (event: Event) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (panel?.contains(target)) return; // 气泡自身内部滚动时不关闭
+      if (!target.contains(active.anchor)) return; // 与锚点无关的滚动（如日志面板）不关闭
+      closeTip();
+    };
 
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("scroll", onScroll, true);
 
     return () => {
       cancelAnimationFrame(raf);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("scroll", onScroll, true);
     };
   });
 </script>
