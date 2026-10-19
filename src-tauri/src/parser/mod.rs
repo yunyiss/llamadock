@@ -73,6 +73,16 @@ fn inline_value(token: &str) -> Option<String> {
     token.find('=').map(|eq| token[eq + 1..].to_string())
 }
 
+/// 布尔参数的显式取值（如 `-fa on`）。
+fn bool_value(token: &str) -> Option<&'static str> {
+    match token.to_ascii_lowercase().as_str() {
+        "on" | "true" | "1" => Some("on"),
+        "off" | "false" | "0" => Some("off"),
+        "auto" => Some("auto"),
+        _ => None,
+    }
+}
+
 /// 分析脚本：定位启动行并把参数映射到注册表（保留未知项）。
 pub fn analyze(text: &str) -> Option<Analyzed> {
     let launch = locate::locate(text)?;
@@ -106,9 +116,13 @@ pub fn analyze(text: &str) -> Option<Analyzed> {
             'find: for (ri, def) in REGISTRY.iter().enumerate() {
                 for &f in def.flags {
                     if f.len() == 2 && raw_text.starts_with(f) && raw_text.len() > 2 {
-                        index = Some(ri);
-                        inline = Some(raw_text[f.len()..].to_string());
-                        break 'find;
+                        let rest = &raw_text[2..];
+                        // 仅当紧跟数字时才算紧贴取值（如 `-c4096`），避免把 `-min-p` 误判成 `-m`
+                        if rest.starts_with(|c: char| c.is_ascii_digit()) {
+                            index = Some(ri);
+                            inline = Some(rest.to_string());
+                            break 'find;
+                        }
                     }
                 }
             }
@@ -119,12 +133,20 @@ pub fn analyze(text: &str) -> Option<Analyzed> {
                 let def = &REGISTRY[ri];
                 let (value, value_span) = match def.kind {
                     ParamKind::Bool => {
-                        let v = if raw_text == "--no-flash-attn" {
-                            "off".to_string()
+                        // 显式取值写法：`-fa on` / `-fa off`
+                        if let Some(next) = tokens.get(i + 1).filter(|t| bool_value(&t.text).is_some())
+                        {
+                            i += 1;
+                            let v = bool_value(&next.text).unwrap_or("on").to_string();
+                            (Some(v), Some((next.start, next.end)))
                         } else {
-                            inline.clone().unwrap_or_else(|| "on".to_string())
-                        };
-                        (Some(v), None)
+                            let v = if raw_text.starts_with("--no-") {
+                                "off".to_string()
+                            } else {
+                                inline.clone().unwrap_or_else(|| "on".to_string())
+                            };
+                            (Some(v), None)
+                        }
                     }
                     _ => match inline {
                         Some(v) => (Some(v), None),
@@ -266,14 +288,14 @@ mod tests {
 
     #[test]
     fn handles_attached_value_bool_and_unknown() {
-        let text = "llama-server -c4096 -fa --foo bar --jinja\n";
+        let text = "llama-server -c4096 -fa --foo bar --custom-flag\n";
         let model = parse("t.sh", text);
 
         assert_eq!(value_of(&model, "-c").unwrap(), "4096");
         assert_eq!(value_of(&model, "--flash-attn").unwrap(), "on");
         assert!(model.unknown.contains(&"--foo".to_string()));
         assert!(model.unknown.contains(&"bar".to_string()));
-        assert!(model.unknown.contains(&"--jinja".to_string()));
+        assert!(model.unknown.contains(&"--custom-flag".to_string()));
     }
 
     #[test]
@@ -289,5 +311,38 @@ mod tests {
         let model = parse("t.cmd", text);
         assert!(model.found);
         assert_eq!(value_of(&model, "-t").unwrap(), "8");
+    }
+
+    #[test]
+    fn parses_cmd_with_line_continuations() {
+        let text = "@echo off\nllama-server.exe ^\n  -m \"a b.gguf\" ^\n  -fa on ^\n  --host 127.0.0.1 ^\n  --port 8089\n";
+        let model = parse("t.cmd", text);
+
+        assert!(model.found);
+        assert_eq!(value_of(&model, "-m").unwrap(), "a b.gguf");
+        assert_eq!(value_of(&model, "--flash-attn").unwrap(), "on");
+        assert_eq!(value_of(&model, "--host").unwrap(), "127.0.0.1");
+        assert_eq!(value_of(&model, "--port").unwrap(), "8089");
+        assert!(model.unknown.is_empty());
+    }
+
+    #[test]
+    fn parses_script_with_comments_and_checks() {
+        let text = "@echo off\nsetlocal\ncd /d \"%~dp0\"\nwhere llama-server.exe >nul 2>nul || (\n    echo [ERROR] 未找到\n    pause\n    exit /b 1\n)\nrem ==========\nllama-server.exe ^\n  -m \"Qwen3.5-9B-UD-Q4_K_XL.gguf\" ^\n  -c 49152 ^\n  --port 8089\n";
+        let model = parse("t.cmd", text);
+
+        assert!(model.found);
+        assert_eq!(value_of(&model, "-c").unwrap(), "49152");
+        assert_eq!(value_of(&model, "--port").unwrap(), "8089");
+    }
+
+    #[test]
+    fn short_prefix_is_not_treated_as_attached_value() {
+        // `-min-p` 不能被误判成 `-m in-p`
+        let text = "llama-server -min-p 0.1 -c4096\n";
+        let model = parse("t.cmd", text);
+
+        assert_eq!(value_of(&model, "-m"), None);
+        assert_eq!(value_of(&model, "-c").unwrap(), "4096");
     }
 }

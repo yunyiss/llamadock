@@ -23,6 +23,7 @@ pub enum ParamGroup {
     Server,
     Perf,
     Gpu,
+    Sampling,
     Log,
 }
 
@@ -38,6 +39,7 @@ pub struct ParamDef {
 }
 
 pub const REGISTRY: &[ParamDef] = &[
+    // 模型
     ParamDef {
         key: "-m",
         flags: &["-m", "--model"],
@@ -52,6 +54,14 @@ pub const REGISTRY: &[ParamDef] = &[
         group: ParamGroup::Model,
         desc: "上下文长度",
     },
+    ParamDef {
+        key: "-a",
+        flags: &["-a", "--alias"],
+        kind: ParamKind::String,
+        group: ParamGroup::Model,
+        desc: "模型别名",
+    },
+    // 服务
     ParamDef {
         key: "--host",
         flags: &["--host"],
@@ -74,12 +84,35 @@ pub const REGISTRY: &[ParamDef] = &[
         desc: "并发数",
     },
     ParamDef {
+        key: "--jinja",
+        flags: &["--jinja"],
+        kind: ParamKind::Bool,
+        group: ParamGroup::Server,
+        desc: "启用 Jinja 模板",
+    },
+    // 性能
+    ParamDef {
         key: "-t",
         flags: &["-t", "--threads"],
         kind: ParamKind::Number,
         group: ParamGroup::Perf,
         desc: "CPU 线程数",
     },
+    ParamDef {
+        key: "-b",
+        flags: &["-b", "--batch-size"],
+        kind: ParamKind::Number,
+        group: ParamGroup::Perf,
+        desc: "批处理大小",
+    },
+    ParamDef {
+        key: "-ub",
+        flags: &["-ub", "--ubatch-size"],
+        kind: ParamKind::Number,
+        group: ParamGroup::Perf,
+        desc: "微批处理大小",
+    },
+    // GPU / 加速
     ParamDef {
         key: "-ngl",
         flags: &["-ngl", "--n-gpu-layers"],
@@ -92,7 +125,57 @@ pub const REGISTRY: &[ParamDef] = &[
         flags: &["-fa", "--flash-attn", "--no-flash-attn"],
         kind: ParamKind::Bool,
         group: ParamGroup::Gpu,
-        desc: "启用 Flash Attention",
+        desc: "Flash Attention",
+    },
+    ParamDef {
+        key: "-ctk",
+        flags: &["-ctk", "--cache-type-k"],
+        kind: ParamKind::String,
+        group: ParamGroup::Gpu,
+        desc: "K 缓存量化类型",
+    },
+    ParamDef {
+        key: "-ctv",
+        flags: &["-ctv", "--cache-type-v"],
+        kind: ParamKind::String,
+        group: ParamGroup::Gpu,
+        desc: "V 缓存量化类型",
+    },
+    // 采样
+    ParamDef {
+        key: "--temp",
+        flags: &["--temp"],
+        kind: ParamKind::Number,
+        group: ParamGroup::Sampling,
+        desc: "温度",
+    },
+    ParamDef {
+        key: "--top-p",
+        flags: &["--top-p"],
+        kind: ParamKind::Number,
+        group: ParamGroup::Sampling,
+        desc: "Top-P",
+    },
+    ParamDef {
+        key: "--top-k",
+        flags: &["--top-k"],
+        kind: ParamKind::Number,
+        group: ParamGroup::Sampling,
+        desc: "Top-K",
+    },
+    ParamDef {
+        key: "--min-p",
+        flags: &["--min-p"],
+        kind: ParamKind::Number,
+        group: ParamGroup::Sampling,
+        desc: "Min-P",
+    },
+    ParamDef {
+        key: "-n",
+        flags: &["-n", "--predict"],
+        kind: ParamKind::Number,
+        group: ParamGroup::Sampling,
+        desc: "最大生成 token 数",
     },
 ];
 
