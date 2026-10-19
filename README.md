@@ -50,4 +50,4 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 ## 许可证
 
-待定（上传 GitHub 后添加）。
+本项目采用 [MIT License](LICENSE)。
