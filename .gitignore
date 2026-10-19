@@ -27,3 +27,6 @@ config.json
 
 # 设计草稿（不上传仓库）
 ui-mockup.html
+
+# 规划 / 工具元数据（不上传仓库）
+.trae/

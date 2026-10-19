@@ -6,3 +6,9 @@
 //! - engine：引擎路径识别与切换
 //! - process：启动 / 停止 / 查询状态
 //! - config：配置读写
+
+/// 连通性检查：验证前后端 IPC 通路（P0 阶段用于联调）。
+#[tauri::command]
+pub fn ping() -> String {
+    "pong".to_string()
+}

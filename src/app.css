@@ -1,0 +1,171 @@
+/* 全局样式：深色主题 token 与通用组件（对齐已确认的 UI 草图 ui-mockup.html）。 */
+
+:root {
+  --bg: #0b0e13;
+  --surface: #12161d;
+  --surface-2: #181e27;
+  --surface-3: #1e2632;
+  --border: #252d3a;
+  --text: #e6eaf2;
+  --muted: #8b95a7;
+  --faint: #5d6675;
+  --brand: #3fb950;
+  --brand-soft: #123a1f;
+  --accent: #58a6ff;
+  --warn: #d29922;
+  --danger: #ff7b72;
+  --radius: 8px;
+  --radius-card: 12px;
+  --mono: "Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace;
+  --sans: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 20px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+.btn,
+.ghost,
+.chip,
+.tab {
+  user-select: none;
+}
+
+/* 通用按钮 */
+.btn {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover {
+  border-color: #33405a;
+}
+.btn:active {
+  background: var(--surface-2);
+}
+.btn.danger {
+  color: var(--danger);
+}
+
+/* 次级按钮 */
+.ghost {
+  font: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.ghost:hover {
+  color: var(--text);
+  border-color: #33405a;
+}
+
+/* 输入框 */
+.input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* 状态点 */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.dot.on {
+  background: var(--brand);
+  box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.15);
+}
+.dot.off {
+  background: #3a4350;
+}
+.dot.err {
+  background: var(--danger);
+}
+
+/* 小徽标 */
+.badge {
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: var(--surface-3);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+/* 胶囊按钮 */
+.chip {
+  font: inherit;
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.chip.on {
+  color: var(--brand);
+  border-color: var(--brand-soft);
+}
+.chip:hover {
+  color: var(--text);
+}
+
+/* 分组标题 */
+.group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.group-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
