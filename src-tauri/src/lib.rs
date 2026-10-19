@@ -11,6 +11,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(process::ProcessManager::default())
+        .manage(watch::WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::config::get_config,
@@ -31,6 +32,7 @@ pub fn run() {
             commands::engine::switch_engine_all,
             commands::process::start_process,
             commands::process::stop_process,
+            watch::watch_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

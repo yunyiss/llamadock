@@ -17,8 +17,9 @@ import {
   stopProcess,
   switchEngineAll,
   switchEngineText,
+  watchDir,
 } from "$lib/ipc";
-import { onProcessState } from "$lib/events";
+import { onProcessState, onScriptsChanged } from "$lib/events";
 import type { EditEntry, EnginePath, ProcessState, ScriptEntry, ScriptModel } from "$lib/types";
 
 /** 当前是否为 Windows。 */
@@ -53,6 +54,8 @@ export const workspace = $state({
   saving: false,
   loading: false,
   error: null as string | null,
+  /** 工作目录有变化，提示刷新 */
+  scriptsStale: false,
 });
 
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
@@ -70,6 +73,7 @@ export async function initWorkspace(): Promise<void> {
   await refreshEngineValidity();
   if (cfg.workDir) {
     workspace.workDir = cfg.workDir;
+    await watchDir(cfg.workDir).catch(() => undefined);
     await refreshScripts();
   }
 }
@@ -81,6 +85,7 @@ export async function refreshScripts(): Promise<void> {
   try {
     workspace.scripts = await scanScripts();
     workspace.error = null;
+    workspace.scriptsStale = false;
   } catch (e) {
     workspace.error = String(e);
   } finally {
@@ -94,6 +99,7 @@ export async function chooseWorkDir(): Promise<void> {
   if (!dir) return;
   workspace.workDir = dir;
   resetSelection();
+  await watchDir(dir).catch(() => undefined);
   await refreshScripts();
 }
 
@@ -187,8 +193,11 @@ export async function applyEngineToAll(oldExe: string, newExe: string): Promise<
   return count;
 }
 
-/** 订阅进程状态事件（应用启动时调用一次）。 */
+/** 订阅进程状态与目录变更事件（应用启动时调用一次）。 */
 export async function initProcessEvents(): Promise<void> {
+  await onScriptsChanged(() => {
+    workspace.scriptsStale = true;
+  });
   await onProcessState((payload) => {
     if (payload.state === "running") {
       workspace.processState = "running";

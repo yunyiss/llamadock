@@ -24,6 +24,10 @@
       <button class="btn" type="button" onclick={chooseWorkDir}>选择工作目录</button>
     </div>
   {:else}
+    {#if workspace.scriptsStale}
+      <button class="hint" type="button" onclick={refreshScripts}>目录有变化，点击刷新</button>
+    {/if}
+
     {#if workspace.error}
       <div class="banner">{workspace.error}</div>
     {/if}
@@ -160,6 +164,23 @@
     border-radius: var(--radius);
     color: var(--danger);
     font-size: 12px;
+  }
+  .hint {
+    display: block;
+    width: calc(100% - 24px);
+    margin: 0 12px 8px;
+    padding: 7px 10px;
+    background: var(--brand-soft);
+    border: 1px solid var(--brand);
+    border-radius: var(--radius);
+    color: var(--brand);
+    font: inherit;
+    font-size: 12px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .hint:hover {
+    background: #17492a;
   }
   .foot {
     padding: 10px 12px;

@@ -101,3 +101,8 @@ export function startProcess(script: string): Promise<number> {
 export function stopProcess(): Promise<void> {
   return invoke<void>("stop_process");
 }
+
+/** 开始监听工作目录变化。 */
+export function watchDir(path: string): Promise<void> {
+  return invoke<void>("watch_dir", { path });
+}

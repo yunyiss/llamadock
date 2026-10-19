@@ -24,3 +24,8 @@ export function onProcessState(
 ): Promise<UnlistenFn> {
   return listen<ProcessStatePayload>("process://state", (event) => handler(event.payload));
 }
+
+/** 订阅工作目录变更提示。 */
+export function onScriptsChanged(handler: () => void): Promise<UnlistenFn> {
+  return listen("scripts://changed", () => handler());
+}
