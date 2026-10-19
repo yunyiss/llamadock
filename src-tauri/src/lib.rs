@@ -9,7 +9,14 @@ mod watch;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![commands::ping])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::ping,
+            commands::config::get_config,
+            commands::workspace::pick_work_dir,
+            commands::workspace::scan_scripts,
+            commands::workspace::open_folder,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

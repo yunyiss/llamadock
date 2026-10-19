@@ -1,23 +1,21 @@
 <script lang="ts">
-  // 顶栏：品牌 + 工作目录 + 引擎版本切换。P0 为静态占位，P1/P4 接入真实数据。
-  let workDir = "D:\\llama\\scripts";
-  let engine = "b4000-cuda";
+  import { workspace, chooseWorkDir } from "$lib/stores/workspace.svelte";
 </script>
 
 <header class="topbar">
   <div class="brand"><span class="logo">L</span> llama.cpp 中控台</div>
 
-  <div class="workdir">
+  <button class="workdir" type="button" onclick={chooseWorkDir} title="选择工作目录">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
       <path d="M1.5 2h5l1.2 1.5h6.8A1 1 0 0 1 16 4.5v8a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1v-9A1 1 0 0 1 1.5 2z" />
     </svg>
-    <span class="path">{workDir}</span>
-  </div>
+    <span class="path">{workspace.workDir ?? "未选择工作目录"}</span>
+  </button>
 
   <div class="spacer"></div>
 
   <div class="engine">
-    引擎 <span class="tag">{engine}</span> <span class="caret">▾</span>
+    引擎 <span class="tag">未识别</span> <span class="caret">▾</span>
   </div>
 </header>
 
@@ -55,13 +53,18 @@
     align-items: center;
     gap: 8px;
     max-width: 420px;
+    font: inherit;
+    font-family: var(--mono);
     font-size: 12px;
     color: var(--muted);
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 5px 10px;
-    font-family: var(--mono);
+    cursor: pointer;
+  }
+  .workdir:hover {
+    border-color: #33405a;
   }
   .workdir svg {
     flex: 0 0 auto;

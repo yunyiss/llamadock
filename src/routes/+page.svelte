@@ -6,11 +6,11 @@
   import ParamPanel from "$lib/components/ParamPanel.svelte";
   import LogTerminal from "$lib/components/LogTerminal.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
-  import { ping } from "$lib/ipc";
+  import { initWorkspace } from "$lib/stores/workspace.svelte";
 
-  onMount(async () => {
-    // P0：验证前后端 IPC 通路（结果打到控制台）
-    console.log("[ipc] ping ->", await ping());
+  onMount(() => {
+    // 启动时恢复上次工作目录并扫描脚本
+    void initWorkspace();
   });
 </script>
 

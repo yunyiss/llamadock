@@ -1,40 +1,61 @@
 <script lang="ts">
-  // 左侧脚本列表。P0 为静态占位，P1 接入真实扫描结果。
-  type Item = { name: string; sub: string; badge: string; state: "on" | "off" };
+  import { workspace, refreshScripts, chooseWorkDir } from "$lib/stores/workspace.svelte";
+  import { openFolder } from "$lib/ipc";
 
-  const scripts: Item[] = [
-    { name: "qwen2.5-32b.cmd", sub: "运行中 · PID 12345", badge: "CUDA", state: "on" },
-    { name: "llama3-8b.sh", sub: "未启动", badge: "Vulkan", state: "off" },
-    { name: "deepseek-r1-q4.cmd", sub: "未启动", badge: "CUDA", state: "off" },
-    { name: "qwen2.5-coder-7b.cmd", sub: "已停止 · 退出码 0", badge: "CUDA", state: "off" },
-  ];
+  let query = $state("");
+  let activePath = $state<string | null>(null);
 
-  let active = 0;
+  const filtered = $derived(
+    workspace.scripts.filter((s) => s.name.toLowerCase().includes(query.trim().toLowerCase())),
+  );
+
+  function openCurrent() {
+    if (workspace.workDir) void openFolder(workspace.workDir);
+  }
 </script>
 
 <aside class="sidebar">
   <div class="head">
-    <input class="search" type="search" placeholder="搜索脚本…" />
+    <input class="search" type="search" placeholder="搜索脚本…" bind:value={query} />
   </div>
 
-  <div class="list">
-    {#each scripts as s, i}
-      <div class="item" class:active={i === active}>
-        <span class="dot {s.state}"></span>
-        <div class="meta">
-          <div class="name">{s.name}</div>
-          <div class="sub">{s.sub}</div>
-        </div>
-        <span class="badge">{s.badge}</span>
-      </div>
-    {/each}
-  </div>
+  {#if !workspace.workDir}
+    <div class="empty">
+      <p>尚未选择工作目录</p>
+      <button class="btn" type="button" onclick={chooseWorkDir}>选择工作目录</button>
+    </div>
+  {:else}
+    {#if workspace.error}
+      <div class="banner">{workspace.error}</div>
+    {/if}
 
-  <div class="foot">
-    <button class="ghost" type="button">＋ 新增</button>
-    <button class="ghost" type="button">刷新</button>
-    <button class="ghost" type="button">打开文件夹</button>
-  </div>
+    <div class="list">
+      {#each filtered as s (s.path)}
+        <button
+          class="item"
+          class:active={activePath === s.path}
+          type="button"
+          onclick={() => (activePath = s.path)}
+        >
+          <span class="dot off"></span>
+          <span class="meta">
+            <span class="name">{s.name}</span>
+            <span class="sub" title={s.path}>{s.path}</span>
+          </span>
+          <span class="badge">{s.ext.toUpperCase()}</span>
+        </button>
+      {/each}
+
+      {#if filtered.length === 0}
+        <div class="none">未找到脚本</div>
+      {/if}
+    </div>
+
+    <div class="foot">
+      <button class="ghost" type="button" onclick={refreshScripts}>刷新</button>
+      <button class="ghost" type="button" onclick={openCurrent}>打开文件夹</button>
+    </div>
+  {/if}
 </aside>
 
 <style>
@@ -76,8 +97,14 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    width: 100%;
     padding: 8px 10px;
+    border: none;
     border-radius: var(--radius);
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
     cursor: pointer;
   }
   .item:hover {
@@ -90,17 +117,50 @@
   .meta {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
   .name {
+    display: block;
     font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .sub {
+    display: block;
+    margin-top: 1px;
     font-size: 11px;
     color: var(--faint);
-    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    text-align: center;
+    color: var(--faint);
+    font-size: 12px;
+  }
+  .none {
+    padding: 16px 10px;
+    text-align: center;
+    color: var(--faint);
+    font-size: 12px;
+  }
+  .banner {
+    margin: 0 12px 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+    color: var(--danger);
+    font-size: 12px;
   }
   .foot {
     padding: 10px 12px;
