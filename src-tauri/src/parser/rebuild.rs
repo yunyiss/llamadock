@@ -6,6 +6,11 @@ use super::analyze;
 use super::registry::{ParamDef, ParamKind, REGISTRY};
 use crate::fsutil::quoting::quote;
 
+/// 保留键：修改启动行的可执行文件路径（llama.cpp 引擎路径本身就是一个参数）。
+pub const EXE_KEY: &str = "__exe";
+/// 保留键：把一段原始文本追加到命令末尾（用于添加任意参数）。
+pub const APPEND_KEY: &str = "__append";
+
 /// 前端提交的单条参数改动。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -79,6 +84,24 @@ pub fn apply_edits(text: &str, edits: &[Edit]) -> Option<String> {
     let mut reps: Vec<(usize, usize, String)> = Vec::new();
 
     for edit in edits {
+        // 保留键：改引擎路径
+        if edit.key == EXE_KEY {
+            if let (Some(token), Some(value)) = (launch.tokens.first(), edit.value.clone()) {
+                reps.push((token.start, token.end, quote(&value)));
+            }
+            continue;
+        }
+        // 保留键：追加任意参数（自定义 flag）。前端会用 `__append:...` 这样的唯一键，可连续追加多条
+        if edit.key.starts_with(APPEND_KEY) {
+            if let Some(raw) = edit.value.clone() {
+                let raw = raw.trim();
+                if !raw.is_empty() {
+                    reps.push((launch.end, launch.end, format!(" {raw}")));
+                }
+            }
+            continue;
+        }
+
         let Some(def_index) = REGISTRY.iter().position(|d| d.key == edit.key) else {
             continue;
         };
@@ -272,5 +295,35 @@ mod tests {
             out,
             "llama-server.exe ^\n  -m a.gguf ^\n  --port 8089 --jinja\n"
         );
+    }
+
+    #[test]
+    fn replaces_exe_via_reserved_key() {
+        let text = "llama-server ^\n  -c 4096\n";
+        let out = apply_edits(
+            text,
+            &[Edit {
+                key: EXE_KEY.to_string(),
+                present: true,
+                value: Some("D:\\llama\\llama-server.exe".to_string()),
+            }],
+        )
+        .unwrap();
+        assert_eq!(out, "D:\\llama\\llama-server.exe ^\n  -c 4096\n");
+    }
+
+    #[test]
+    fn appends_custom_param_via_reserved_key() {
+        let text = "llama-server -c 4096\n";
+        let out = apply_edits(
+            text,
+            &[Edit {
+                key: APPEND_KEY.to_string(),
+                present: true,
+                value: Some("--cache-reuse 256".to_string()),
+            }],
+        )
+        .unwrap();
+        assert_eq!(out, "llama-server -c 4096 --cache-reuse 256\n");
     }
 }

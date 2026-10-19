@@ -1,5 +1,5 @@
 <script lang="ts">
-  // 单行参数：布尔用开关，其余用输入框；改动通过回调上报。
+  // 单行参数：布尔用开关，其余用输入框；「?」展开详细说明；改动通过回调上报。
   import type { ParamView } from "$lib/types";
 
   let {
@@ -11,6 +11,7 @@
   } = $props();
 
   const isOn = $derived(param.present && param.value !== "off");
+  let showDetail = $state(false);
 
   function toggle() {
     onChange(true, isOn ? "off" : "on");
@@ -21,54 +22,75 @@
   }
 </script>
 
-<div class="row" class:absent={!param.present}>
-  <div class="label">
-    <div class="t">{param.desc}</div>
-    <div class="d"><span class="flag">{param.flags.join(" · ")}</span></div>
+<div class="wrap" class:absent={!param.present}>
+  <div class="row">
+    <div class="label">
+      <div class="t">
+        {param.desc}
+        <button
+          class="help"
+          class:on={showDetail}
+          type="button"
+          aria-label="参数说明"
+          title="参数说明"
+          onclick={() => (showDetail = !showDetail)}
+        >?</button>
+      </div>
+      <div class="d"><span class="flag">{param.flags.join(" · ")}</span></div>
+    </div>
+    <div class="ctrl">
+      {#if param.kind === "bool"}
+        <button
+          class="switch"
+          class:off={!isOn}
+          type="button"
+          aria-label="切换 {param.desc}"
+          onclick={toggle}
+        ></button>
+      {:else}
+        <input
+          class="input"
+          class:num={param.kind === "number"}
+          value={param.value ?? ""}
+          onchange={(e) => onChange(true, (e.currentTarget as HTMLInputElement).value)}
+          spellcheck="false"
+        />
+      {/if}
+      {#if param.present}
+        <button class="remove" type="button" title="移除该参数" onclick={remove}>×</button>
+      {/if}
+    </div>
   </div>
-  <div class="ctrl">
-    {#if param.kind === "bool"}
-      <button
-        class="switch"
-        class:off={!isOn}
-        type="button"
-        aria-label="切换 {param.desc}"
-        onclick={toggle}
-      ></button>
-    {:else}
-      <input
-        class="input"
-        class:num={param.kind === "number"}
-        value={param.value ?? ""}
-        onchange={(e) => onChange(true, (e.currentTarget as HTMLInputElement).value)}
-        spellcheck="false"
-      />
-    {/if}
-    {#if param.present}
-      <button class="remove" type="button" title="移除该参数" onclick={remove}>×</button>
-    {/if}
-  </div>
+
+  {#if showDetail}
+    <div class="detail">{param.detail}</div>
+  {/if}
 </div>
 
 <style>
+  .wrap {
+    border-bottom: 1px solid var(--border);
+  }
+  .wrap:last-child {
+    border-bottom: none;
+  }
+  .wrap.absent {
+    opacity: 0.55;
+  }
   .row {
     display: flex;
     align-items: center;
     gap: 16px;
     padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-  }
-  .row:last-child {
-    border-bottom: none;
-  }
-  .row.absent {
-    opacity: 0.55;
   }
   .label {
     width: 220px;
     flex: 0 0 220px;
   }
   .label .t {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font-size: 13px;
   }
   .label .d {
@@ -80,6 +102,23 @@
     font-family: var(--mono);
     color: var(--accent);
     opacity: 0.85;
+  }
+  .help {
+    width: 15px;
+    height: 15px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .help:hover,
+  .help.on {
+    color: var(--accent);
+    border-color: var(--accent);
   }
   .ctrl {
     flex: 1;
@@ -104,6 +143,12 @@
   .remove:hover {
     color: var(--danger);
     background: var(--surface-2);
+  }
+  .detail {
+    padding: 0 14px 10px 234px;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--muted);
   }
   .switch {
     width: 38px;

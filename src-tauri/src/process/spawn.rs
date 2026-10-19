@@ -30,8 +30,14 @@ pub fn build(script: &Path) -> Command {
 }
 
 /// 启动脚本，接管其 stdout / stderr。
+///
+/// 工作目录设为**脚本所在目录**（等价于双击脚本执行），这样脚本里的相对路径
+/// （如 `-m xxx.gguf`）才能被 llama.cpp 正确解析。
 pub fn spawn(script: &Path) -> std::io::Result<Child> {
     let mut cmd = build(script);
+    if let Some(dir) = script.parent() {
+        cmd.current_dir(dir);
+    }
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

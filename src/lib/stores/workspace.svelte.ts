@@ -133,10 +133,11 @@ export async function setRaw(text: string): Promise<void> {
   await refreshModelFromDraft();
 }
 
-/** 刷新引擎路径有效性。 */
+/** 刷新引擎路径有效性（只校验绝对路径；`llama-server` 这类走 PATH 的名字不判无效）。 */
 async function refreshEngineValidity(): Promise<void> {
   const invalid: string[] = [];
   for (const engine of workspace.engines) {
+    if (!looksAbsolute(engine.path)) continue;
     try {
       if (!(await pathExists(engine.path))) invalid.push(engine.name);
     } catch {
@@ -144,6 +145,18 @@ async function refreshEngineValidity(): Promise<void> {
     }
   }
   workspace.invalidEngines = invalid;
+}
+
+function looksAbsolute(path: string): boolean {
+  return /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith("/") || path.includes("\\") || path.includes("/");
+}
+
+/** 把某个路径存为引擎版本。 */
+export async function saveEngineVersion(path: string): Promise<void> {
+  const name = path.split(/[\\/]/).pop() ?? path;
+  workspace.engines = await saveEngine(name, path);
+  workspace.currentEngine = name;
+  await refreshEngineValidity();
 }
 
 /** 重新加载引擎列表。 */

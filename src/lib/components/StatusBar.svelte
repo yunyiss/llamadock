@@ -11,6 +11,9 @@
   const running = $derived(workspace.processState === "running");
   const runnable = $derived(canRun());
   const port = $derived(currentPort());
+  const engineName = $derived(
+    workspace.model?.launcher?.exe?.split(/[\\/]/).pop() ?? null,
+  );
 
   const tone = $derived(
     running
@@ -44,8 +47,8 @@
   {#if port}
     <span class="kv">端口 <b>{port}</b></span>
   {/if}
-  {#if workspace.currentEngine}
-    <span class="kv">引擎 <b>{workspace.currentEngine}</b></span>
+  {#if engineName}
+    <span class="kv">引擎 <b>{engineName}</b></span>
   {/if}
 
   <div class="right">

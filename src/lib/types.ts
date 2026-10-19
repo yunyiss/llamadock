@@ -34,9 +34,17 @@ export interface ParamView {
   kind: ParamKind;
   group: ParamGroup;
   desc: string;
+  /** 点「?」时展示的详细说明 */
+  detail: string;
   value: string | null;
   present: boolean;
 }
+
+/** 保留编辑键：修改启动行的可执行文件路径（与后端 rebuild 常量一致）。 */
+export const EXE_KEY = "__exe";
+
+/** 保留编辑键前缀：把原始文本追加到命令末尾（添加任意参数）。 */
+export const APPEND_KEY = "__append";
 
 /** 脚本解析模型。 */
 export interface ScriptModel {

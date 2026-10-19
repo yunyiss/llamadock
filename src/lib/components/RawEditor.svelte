@@ -41,6 +41,15 @@
     if (timer) clearTimeout(timer);
     view?.destroy();
   });
+
+  // 外部文本变化（切换脚本、或参数改动重建草稿）时同步到编辑器
+  $effect(() => {
+    const next = initial;
+    if (!view) return;
+    const current = view.state.doc.toString();
+    if (current === next) return;
+    view.dispatch({ changes: { from: 0, to: current.length, insert: next } });
+  });
 </script>
 
 <div class="editor" bind:this={host}></div>

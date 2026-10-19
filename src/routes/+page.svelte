@@ -65,15 +65,17 @@
 
       {#if tab === "params"}
         <ParamPanel />
-      {:else if workspace.selected}
+      {:else if !workspace.selected}
+        <div class="placeholder">从左侧选择一个脚本</div>
+      {:else if !workspace.baseText}
+        <div class="placeholder">加载中…</div>
+      {:else}
         {#key workspace.selected}
           <RawEditor
-            initial={workspace.draft ?? workspace.baseText ?? ""}
+            initial={workspace.draft ?? workspace.baseText}
             onChange={(text) => void setRaw(text)}
           />
         {/key}
-      {:else}
-        <div class="placeholder">从左侧选择一个脚本</div>
       {/if}
 
       <LogTerminal />

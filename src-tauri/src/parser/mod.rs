@@ -25,6 +25,8 @@ pub struct ParamView {
     pub kind: ParamKind,
     pub group: ParamGroup,
     pub desc: String,
+    /// 更详细的说明（点「?」时展示）
+    pub detail: String,
     pub value: Option<String>,
     /// 脚本中是否出现该参数
     pub present: bool,
@@ -240,6 +242,7 @@ pub fn parse(path: &str, text: &str) -> ScriptModel {
             kind: def.kind,
             group: def.group,
             desc: def.desc.to_string(),
+            detail: def.detail.to_string(),
             value: matched[ri].clone().flatten(),
             present: matched[ri].is_some(),
         })
