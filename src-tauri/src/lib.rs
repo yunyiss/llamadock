@@ -19,6 +19,7 @@ pub fn run() {
             commands::workspace::scan_scripts,
             commands::workspace::open_folder,
             commands::workspace::path_exists,
+            commands::workspace::open_url,
             commands::script::parse_script,
             commands::script::parse_text,
             commands::script::rebuild_script,

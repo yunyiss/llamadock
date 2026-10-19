@@ -1,26 +1,19 @@
 <script lang="ts">
-  // 底部状态栏：进程状态 / PID / 端口 / 引擎，以及启动与停止。
-  import {
-    canRun,
-    currentPort,
-    killScript,
-    runScript,
-    workspace,
-  } from "$lib/stores/workspace.svelte";
+  // 底部状态栏：跟随当前脚本的进程状态 / PID / 端口 / 引擎，以及启动与停止。
+  import { canRun, currentPort, killScript, runScript, runtimeOf, workspace } from "$lib/stores/workspace.svelte";
 
-  const running = $derived(workspace.processState === "running");
+  const rt = $derived(runtimeOf(workspace.selected));
+  const running = $derived(rt.state === "running");
   const runnable = $derived(canRun());
   const port = $derived(currentPort());
-  const engineName = $derived(
-    workspace.model?.launcher?.exe?.split(/[\\/]/).pop() ?? null,
-  );
+  const engineName = $derived(workspace.model?.launcher?.exe?.split(/[\\/]/).pop() ?? null);
 
   const tone = $derived(
     running
       ? "run"
-      : workspace.processState === "idle"
+      : rt.state === "idle"
         ? "idle"
-        : workspace.stopRequested || !workspace.exitCode
+        : rt.stopRequested || !rt.exitCode
           ? "stop"
           : "err",
   );
@@ -28,11 +21,11 @@
   const statusText = $derived(
     running
       ? "运行中"
-      : workspace.processState === "idle"
+      : rt.state === "idle"
         ? "未启动"
-        : workspace.stopRequested || !workspace.exitCode
+        : rt.stopRequested || !rt.exitCode
           ? "已停止"
-          : `异常退出（退出码 ${workspace.exitCode}）`,
+          : `异常退出（退出码 ${rt.exitCode}）`,
   );
 
   const dotClass = $derived(tone === "run" ? "on" : tone === "err" ? "err" : "off");
@@ -41,8 +34,8 @@
 <footer class="statusbar">
   <span class="st {tone}"><span class="dot {dotClass}"></span> {statusText}</span>
 
-  {#if workspace.pid !== null}
-    <span class="kv">PID <b>{workspace.pid}</b></span>
+  {#if rt.pid !== null}
+    <span class="kv">PID <b>{rt.pid}</b></span>
   {/if}
   {#if port}
     <span class="kv">端口 <b>{port}</b></span>

@@ -15,6 +15,32 @@ pub fn hidden_command(program: &str) -> Command {
     cmd
 }
 
+/// 用系统默认程序打开 URL。
+pub fn open_url(url: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut c = hidden_command("cmd");
+        c.args(["/C", "start", "", url]);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = hidden_command("open");
+        c.arg(url);
+        c
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut cmd = {
+        let mut c = hidden_command("xdg-open");
+        c.arg(url);
+        c
+    };
+
+    cmd.spawn()
+        .map(|_| ())
+        .map_err(|e| format!("打开链接失败：{e}"))
+}
+
 /// 在系统文件管理器中打开目录。
 pub fn open_folder(path: &Path) -> Result<(), String> {
     #[cfg(windows)]

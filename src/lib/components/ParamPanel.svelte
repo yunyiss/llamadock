@@ -11,9 +11,9 @@
   import { GROUP_LABELS, GROUP_ORDER } from "$lib/params";
   import { APPEND_KEY, EXE_KEY } from "$lib/types";
   import ParamRow from "./ParamRow.svelte";
+  import HelpTip from "./HelpTip.svelte";
 
   let engineOpen = $state(false);
-  let engineDetail = $state(false);
   let custom = $state("");
 
   const engineValue = $derived(workspace.model?.launcher?.exe ?? "");
@@ -58,14 +58,9 @@
             <div class="label">
               <div class="t">
                 可执行文件
-                <button
-                  class="help"
-                  class:on={engineDetail}
-                  type="button"
-                  title="参数说明"
-                  aria-label="参数说明"
-                  onclick={() => (engineDetail = !engineDetail)}
-                >?</button>
+                <HelpTip
+                  text="脚本启动行里的 llama.cpp 可执行文件。写了环境变量（PATH）的脚本可以直接写 llama-server，否则一般写绝对路径（如 D:\llama\llama-server.exe）。改这里就是改脚本里的这一项，由脚本自己决定用哪个 llama.cpp。"
+                />
               </div>
               <div class="d">启动行首个 token</div>
             </div>
@@ -82,15 +77,6 @@
               </button>
             </div>
           </div>
-
-          {#if engineDetail}
-            <div class="detail">
-              脚本启动行里的 llama.cpp 可执行文件。写了环境变量（PATH）的脚本可以直接写
-              <code>llama-server</code>，否则一般写绝对路径（如
-              <code>D:\llama\llama-server.exe</code>）。改这里就是改脚本里的这一项，由脚本自己决定用哪个
-              llama.cpp。
-            </div>
-          {/if}
 
           {#if engineOpen}
             <div class="engine-list">
@@ -216,39 +202,12 @@
     font-size: 11px;
     color: var(--faint);
   }
-  .help {
-    width: 15px;
-    height: 15px;
-    padding: 0;
-    border-radius: 50%;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    color: var(--muted);
-    font-size: 10px;
-    line-height: 1;
-    cursor: pointer;
-  }
-  .help:hover,
-  .help.on {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
   .ctrl {
     flex: 1;
     display: flex;
     align-items: center;
     gap: 8px;
     min-width: 0;
-  }
-  .detail {
-    padding: 0 14px 10px 234px;
-    font-size: 12px;
-    line-height: 18px;
-    color: var(--muted);
-  }
-  .detail code {
-    font-family: var(--mono);
-    color: var(--accent);
   }
   .engine-list {
     border-top: 1px solid var(--border);

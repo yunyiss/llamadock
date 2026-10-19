@@ -3,11 +3,14 @@ import { listen } from "@tauri-apps/api/event";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 export interface LogPayload {
+  /** 归属的脚本路径 */
+  script: string;
   stream: "stdout" | "stderr";
   data: string;
 }
 
 export interface ProcessStatePayload {
+  script: string;
   state: "running" | "exited";
   pid: number | null;
   code: number | null;

@@ -19,7 +19,8 @@ import {
   switchEngineText,
   watchDir,
 } from "$lib/ipc";
-import { onProcessState, onScriptsChanged } from "$lib/events";
+import { onLog, onProcessState, onScriptsChanged } from "$lib/events";
+import { SvelteMap } from "svelte/reactivity";
 import type { EditEntry, EnginePath, ProcessState, ScriptEntry, ScriptModel } from "$lib/types";
 
 /** 当前是否为 Windows。 */
@@ -45,18 +46,45 @@ export const workspace = $state({
   currentEngine: null as string | null,
   /** 路径已失效的引擎名 */
   invalidEngines: [] as string[],
-  /** 进程状态 */
-  processState: "idle" as ProcessState,
-  pid: null as number | null,
-  exitCode: null as number | null,
-  /** 本次退出是否由用户主动停止触发 */
-  stopRequested: false,
   saving: false,
   loading: false,
   error: null as string | null,
   /** 工作目录有变化，提示刷新 */
   scriptsStale: false,
 });
+
+/** 单个脚本的运行态。 */
+export interface Runtime {
+  state: ProcessState;
+  pid: number | null;
+  exitCode: number | null;
+  /** 本次退出是否由用户主动停止触发 */
+  stopRequested: boolean;
+}
+
+const IDLE: Runtime = { state: "idle", pid: null, exitCode: null, stopRequested: false };
+const LOG_LIMIT = 400_000;
+
+/** 每个脚本独立的运行态与日志（支持同时运行多个脚本）。 */
+export const runtime = new SvelteMap<string, Runtime>();
+export const logs = new SvelteMap<string, string>();
+
+/** 取某个脚本的运行态。 */
+export function runtimeOf(path: string | null): Runtime {
+  if (!path) return IDLE;
+  return runtime.get(path) ?? IDLE;
+}
+
+/** 清空某个脚本的日志。 */
+export function clearLogs(path: string): void {
+  logs.set(path, "");
+}
+
+function appendLog(script: string, data: string): void {
+  let next = (logs.get(script) ?? "") + data;
+  if (next.length > LOG_LIMIT) next = next.slice(next.length - LOG_LIMIT);
+  logs.set(script, next);
+}
 
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -206,23 +234,21 @@ export async function applyEngineToAll(oldExe: string, newExe: string): Promise<
   return count;
 }
 
-/** 订阅进程状态与目录变更事件（应用启动时调用一次）。 */
+/** 订阅进程状态 / 日志 / 目录变更事件（应用启动时调用一次）。 */
 export async function initProcessEvents(): Promise<void> {
   await onScriptsChanged(() => {
     workspace.scriptsStale = true;
   });
   await onProcessState((payload) => {
-    if (payload.state === "running") {
-      workspace.processState = "running";
-      workspace.pid = payload.pid;
-      workspace.exitCode = null;
-      workspace.stopRequested = false;
-    } else {
-      workspace.processState = "exited";
-      workspace.pid = null;
-      workspace.exitCode = payload.code;
-    }
+    const prev = runtime.get(payload.script) ?? IDLE;
+    runtime.set(payload.script, {
+      state: payload.state === "running" ? "running" : "exited",
+      pid: payload.pid,
+      exitCode: payload.code,
+      stopRequested: payload.state === "running" ? false : prev.stopRequested,
+    });
   });
+  await onLog((payload) => appendLog(payload.script, payload.data));
 }
 
 /** 当前脚本能否在本平台直接运行（Windows 无法原生执行 .sh）。 */
@@ -237,26 +263,31 @@ export function currentPort(): string | null {
   return workspace.model?.params.find((p) => p.key === "--port")?.value ?? null;
 }
 
-/** 启动当前脚本。 */
+/** 启动当前脚本（每个脚本独立进程，可同时运行多个）。 */
 export async function runScript(): Promise<void> {
-  if (!workspace.selected || !canRun()) return;
+  const path = workspace.selected;
+  if (!path || !canRun()) return;
   if (isDirty()) {
     workspace.error = "有未保存的改动，请先保存再启动";
     return;
   }
   workspace.error = null;
+  logs.set(path, "");
   try {
-    await startProcess(workspace.selected);
+    await startProcess(path);
   } catch (e) {
     workspace.error = String(e);
   }
 }
 
-/** 停止运行中的进程。 */
+/** 停止当前脚本的运行进程。 */
 export async function killScript(): Promise<void> {
-  workspace.stopRequested = true;
+  const path = workspace.selected;
+  if (!path) return;
+  const prev = runtime.get(path) ?? IDLE;
+  runtime.set(path, { ...prev, stopRequested: true });
   try {
-    await stopProcess();
+    await stopProcess(path);
   } catch (e) {
     workspace.error = String(e);
   }

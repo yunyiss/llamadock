@@ -73,6 +73,15 @@ pub fn scan_scripts(app: AppHandle) -> Result<Vec<ScriptEntry>, String> {
     Ok(out)
 }
 
+/// 用系统默认程序打开 URL（仅允许 http/https，用于日志里的链接点击）。
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("仅支持 http/https 链接".to_string());
+    }
+    platform::open_url(&url)
+}
+
 /// 判断路径是否存在（用于引擎 / 模型失效提示）。
 #[tauri::command]
 pub fn path_exists(path: String) -> bool {

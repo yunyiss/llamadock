@@ -1,6 +1,7 @@
 <script lang="ts">
-  // 单行参数：布尔用开关，其余用输入框；「?」展开详细说明；改动通过回调上报。
+  // 单行参数：布尔用开关，其余用输入框；「?」气泡说明；改动通过回调上报。
   import type { ParamView } from "$lib/types";
+  import HelpTip from "./HelpTip.svelte";
 
   let {
     param,
@@ -11,7 +12,6 @@
   } = $props();
 
   const isOn = $derived(param.present && param.value !== "off");
-  let showDetail = $state(false);
 
   function toggle() {
     onChange(true, isOn ? "off" : "on");
@@ -27,14 +27,7 @@
     <div class="label">
       <div class="t">
         {param.desc}
-        <button
-          class="help"
-          class:on={showDetail}
-          type="button"
-          aria-label="参数说明"
-          title="参数说明"
-          onclick={() => (showDetail = !showDetail)}
-        >?</button>
+        <HelpTip text={param.detail} />
       </div>
       <div class="d"><span class="flag">{param.flags.join(" · ")}</span></div>
     </div>
@@ -61,10 +54,6 @@
       {/if}
     </div>
   </div>
-
-  {#if showDetail}
-    <div class="detail">{param.detail}</div>
-  {/if}
 </div>
 
 <style>
@@ -103,23 +92,6 @@
     color: var(--accent);
     opacity: 0.85;
   }
-  .help {
-    width: 15px;
-    height: 15px;
-    padding: 0;
-    border-radius: 50%;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    color: var(--muted);
-    font-size: 10px;
-    line-height: 1;
-    cursor: pointer;
-  }
-  .help:hover,
-  .help.on {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
   .ctrl {
     flex: 1;
     display: flex;
@@ -143,12 +115,6 @@
   .remove:hover {
     color: var(--danger);
     background: var(--surface-2);
-  }
-  .detail {
-    padding: 0 14px 10px 234px;
-    font-size: 12px;
-    line-height: 18px;
-    color: var(--muted);
   }
   .switch {
     width: 38px;

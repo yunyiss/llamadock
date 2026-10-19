@@ -97,9 +97,14 @@ export function startProcess(script: string): Promise<number> {
   return invoke<number>("start_process", { script });
 }
 
-/** 停止运行中的进程（含子树）。 */
-export function stopProcess(): Promise<void> {
-  return invoke<void>("stop_process");
+/** 停止指定脚本的运行进程（含子树）。 */
+export function stopProcess(script: string): Promise<void> {
+  return invoke<void>("stop_process", { script });
+}
+
+/** 用系统默认程序打开链接。 */
+export function openUrl(url: string): Promise<void> {
+  return invoke<void>("open_url", { url });
 }
 
 /** 开始监听工作目录变化。 */

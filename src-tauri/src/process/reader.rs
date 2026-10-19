@@ -11,6 +11,8 @@ use crate::fsutil::encoding;
 
 #[derive(Clone, serde::Serialize)]
 pub struct LogPayload {
+    /// 归属的脚本路径（前端按脚本分流日志）
+    pub script: String,
     pub stream: String,
     pub data: String,
 }
@@ -21,7 +23,7 @@ const FLUSH_INTERVAL: Duration = Duration::from_millis(40);
 const FLUSH_BYTES: usize = 4096;
 
 /// 启动读取 + 推送线程：读取线程投递分片，合并线程按时间窗批量 emit。
-pub fn pump<R: Read + Send + 'static>(app: AppHandle, stream: &'static str, reader: R) {
+pub fn pump<R: Read + Send + 'static>(app: AppHandle, script: String, stream: &'static str, reader: R) {
     let (tx, rx) = channel::<Vec<u8>>();
 
     std::thread::spawn(move || {
@@ -46,12 +48,12 @@ pub fn pump<R: Read + Send + 'static>(app: AppHandle, stream: &'static str, read
                 Ok(chunk) => {
                     carry.extend_from_slice(&chunk);
                     if carry.len() >= FLUSH_BYTES {
-                        flush(&app, stream, &mut carry, false);
+                        flush(&app, &script, stream, &mut carry, false);
                     }
                 }
-                Err(RecvTimeoutError::Timeout) => flush(&app, stream, &mut carry, false),
+                Err(RecvTimeoutError::Timeout) => flush(&app, &script, stream, &mut carry, false),
                 Err(RecvTimeoutError::Disconnected) => {
-                    flush(&app, stream, &mut carry, true);
+                    flush(&app, &script, stream, &mut carry, true);
                     break;
                 }
             }
@@ -59,7 +61,7 @@ pub fn pump<R: Read + Send + 'static>(app: AppHandle, stream: &'static str, read
     });
 }
 
-fn flush(app: &AppHandle, stream: &str, carry: &mut Vec<u8>, final_flush: bool) {
+fn flush(app: &AppHandle, script: &str, stream: &str, carry: &mut Vec<u8>, final_flush: bool) {
     if carry.is_empty() {
         return;
     }
@@ -78,6 +80,7 @@ fn flush(app: &AppHandle, stream: &str, carry: &mut Vec<u8>, final_flush: bool) 
     let _ = app.emit(
         "process://log",
         LogPayload {
+            script: script.to_string(),
             stream: stream.to_string(),
             data: text,
         },
