@@ -16,6 +16,7 @@ pub fn run() {
             commands::workspace::pick_work_dir,
             commands::workspace::scan_scripts,
             commands::workspace::open_folder,
+            commands::script::parse_script,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

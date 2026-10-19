@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import type { Config, ScriptEntry } from "./types";
+import type { Config, ScriptEntry, ScriptModel } from "./types";
 
 export { invoke, listen };
 export type { UnlistenFn };
@@ -30,4 +30,9 @@ export function scanScripts(): Promise<ScriptEntry[]> {
 /** 在系统文件管理器中打开目录。 */
 export function openFolder(path: string): Promise<void> {
   return invoke<void>("open_folder", { path });
+}
+
+/** 解析脚本中的 llama.cpp 启动参数。 */
+export function parseScript(path: string): Promise<ScriptModel> {
+  return invoke<ScriptModel>("parse_script", { path });
 }

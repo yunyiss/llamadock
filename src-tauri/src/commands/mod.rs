@@ -8,6 +8,7 @@
 //! - config：配置读写
 
 pub mod config;
+pub mod script;
 pub mod workspace;
 
 /// 连通性检查：验证前后端 IPC 通路（P0 阶段用于联调）。

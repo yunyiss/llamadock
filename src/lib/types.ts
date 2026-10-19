@@ -13,5 +13,32 @@ export interface Config {
   recentDirs: string[];
 }
 
+/** 参数类型。 */
+export type ParamKind = "number" | "bool" | "path" | "string" | "enum";
+
+/** 参数分组。 */
+export type ParamGroup = "model" | "server" | "perf" | "gpu" | "log";
+
+/** 单个参数（解析结果视图）。 */
+export interface ParamView {
+  key: string;
+  flags: string[];
+  kind: ParamKind;
+  group: ParamGroup;
+  desc: string;
+  value: string | null;
+  present: boolean;
+}
+
+/** 脚本解析模型。 */
+export interface ScriptModel {
+  path: string;
+  found: boolean;
+  launcher: { exe: string; lineIndex: number } | null;
+  params: ParamView[];
+  unknown: string[];
+  raw: string;
+}
+
 /** 进程状态（P5 起由后端推送）。 */
 export type ProcessState = "idle" | "running" | "stopped" | "exited";

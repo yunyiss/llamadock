@@ -1,76 +1,57 @@
 <script lang="ts">
-  // 参数面板内容区。P0 为静态占位，P2 起由解析结果驱动渲染。
-  type Row = {
-    label: string;
-    flags: string;
-    hint?: string;
-    kind: "path" | "number" | "string" | "bool";
-    value?: string;
-    on?: boolean;
-  };
-  type Group = { title: string; rows: Row[] };
+  // 参数面板：由解析结果驱动，按「模型 / 服务 / 性能 / GPU」分组只读展示（P3 起可编辑）。
+  import { workspace } from "$lib/stores/workspace.svelte";
+  import { GROUP_LABELS, GROUP_ORDER } from "$lib/params";
 
-  const groups: Group[] = [
-    {
-      title: "模型",
-      rows: [
-        {
-          label: "模型路径",
-          flags: "-m --model",
-          hint: "模型文件路径",
-          kind: "path",
-          value: "D:\\models\\Qwen2.5-32B-Instruct-Q4_K_M.gguf",
-        },
-        { label: "上下文长度", flags: "-c --ctx-size", hint: "越大越吃显存", kind: "number", value: "4096" },
-      ],
-    },
-    {
-      title: "服务",
-      rows: [
-        { label: "监听地址", flags: "--host", kind: "string", value: "127.0.0.1" },
-        { label: "端口", flags: "--port", kind: "number", value: "8080" },
-        { label: "并发数", flags: "--parallel", kind: "number", value: "4" },
-      ],
-    },
-    {
-      title: "性能 / GPU",
-      rows: [
-        { label: "CPU 线程数", flags: "-t --threads", kind: "number", value: "8" },
-        { label: "GPU 卸载层数", flags: "-ngl --n-gpu-layers", kind: "number", value: "99" },
-        { label: "Flash Attention", flags: "--flash-attn", kind: "bool", on: true },
-      ],
-    },
-  ];
+  const groups = $derived(
+    GROUP_ORDER.map((key) => ({
+      key,
+      label: GROUP_LABELS[key],
+      rows: (workspace.model?.params ?? []).filter((p) => p.group === key),
+    })).filter((g) => g.rows.length > 0),
+  );
 </script>
 
 <div class="content">
-  {#each groups as g}
-    <section class="group">
-      <div class="group-title">{g.title}</div>
-      <div class="card">
-        {#each g.rows as r}
-          <div class="row">
-            <div class="label">
-              <div class="t">{r.label}</div>
-              <div class="d">
-                <span class="flag">{r.flags}</span>{#if r.hint}<span class="hint"> · {r.hint}</span>{/if}
+  {#if !workspace.selected}
+    <div class="empty">从左侧选择一个脚本以查看参数</div>
+  {:else if !workspace.model}
+    <div class="empty">解析中…</div>
+  {:else if !workspace.model.found}
+    <div class="empty">未在该脚本中识别到 llama.cpp 启动行</div>
+  {:else}
+    {#each groups as g (g.key)}
+      <section class="group">
+        <div class="group-title">{g.label}</div>
+        <div class="card">
+          {#each g.rows as r (r.key)}
+            <div class="row" class:absent={!r.present}>
+              <div class="label">
+                <div class="t">{r.desc}</div>
+                <div class="d"><span class="flag">{r.flags.join(" · ")}</span></div>
+              </div>
+              <div class="ctrl">
+                {#if r.kind === "bool"}
+                  <span class="switch" class:off={!r.present || r.value === "off"}></span>
+                {:else}
+                  <span class="field" class:num={r.kind === "number"}>{r.value ?? "未设置"}</span>
+                {/if}
               </div>
             </div>
-            <div class="ctrl">
-              {#if r.kind === "bool"}
-                <span class="switch" class:off={!r.on}></span>
-              {:else}
-                <span class="field" class:num={r.kind === "number"}>{r.value}</span>
-                {#if r.kind === "path"}
-                  <button class="btn" type="button">选择文件</button>
-                {/if}
-              {/if}
-            </div>
-          </div>
-        {/each}
-      </div>
-    </section>
-  {/each}
+          {/each}
+        </div>
+      </section>
+    {/each}
+
+    {#if workspace.model.unknown.length > 0}
+      <section class="group">
+        <div class="group-title">未识别参数</div>
+        <div class="card">
+          <div class="unknown">{workspace.model.unknown.join("   ")}</div>
+        </div>
+      </section>
+    {/if}
+  {/if}
 </div>
 
 <style>
@@ -79,8 +60,18 @@
     overflow: auto;
     padding: 16px;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .empty {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    color: var(--faint);
+    font-size: 12px;
   }
   .group {
+    flex: 0 0 auto;
     margin-bottom: 16px;
   }
   .group-title {
@@ -102,6 +93,9 @@
   .row:last-child {
     border-bottom: none;
   }
+  .row.absent {
+    opacity: 0.55;
+  }
   .label {
     width: 220px;
     flex: 0 0 220px;
@@ -110,9 +104,9 @@
     font-size: 13px;
   }
   .label .d {
+    margin-top: 2px;
     font-size: 11px;
     color: var(--faint);
-    margin-top: 2px;
   }
   .flag {
     font-family: var(--mono);
@@ -143,6 +137,13 @@
   .field.num {
     flex: 0 0 auto;
     max-width: 120px;
+  }
+  .unknown {
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    word-break: break-all;
   }
   .switch {
     width: 38px;

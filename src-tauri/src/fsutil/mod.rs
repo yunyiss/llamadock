@@ -1,3 +1,4 @@
 //! 平台抽象层：路径、shell、可执行后缀、输出编码、引号与转义规则（见技术方案 §4.4 / §6）。
 
+pub mod encoding;
 pub mod platform;

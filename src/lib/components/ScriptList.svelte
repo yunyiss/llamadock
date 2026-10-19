@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { workspace, refreshScripts, chooseWorkDir } from "$lib/stores/workspace.svelte";
+  import { workspace, refreshScripts, chooseWorkDir, selectScript } from "$lib/stores/workspace.svelte";
   import { openFolder } from "$lib/ipc";
 
   let query = $state("");
-  let activePath = $state<string | null>(null);
 
   const filtered = $derived(
     workspace.scripts.filter((s) => s.name.toLowerCase().includes(query.trim().toLowerCase())),
@@ -33,9 +32,9 @@
       {#each filtered as s (s.path)}
         <button
           class="item"
-          class:active={activePath === s.path}
+          class:active={workspace.selected === s.path}
           type="button"
-          onclick={() => (activePath = s.path)}
+          onclick={() => selectScript(s.path)}
         >
           <span class="dot off"></span>
           <span class="meta">

@@ -1,10 +1,12 @@
 // 工作目录与脚本列表状态（Svelte 5 rune 模块）。
-import { getConfig, pickWorkDir, scanScripts } from "$lib/ipc";
-import type { ScriptEntry } from "$lib/types";
+import { getConfig, parseScript, pickWorkDir, scanScripts } from "$lib/ipc";
+import type { ScriptEntry, ScriptModel } from "$lib/types";
 
 export const workspace = $state({
   workDir: null as string | null,
   scripts: [] as ScriptEntry[],
+  selected: null as string | null,
+  model: null as ScriptModel | null,
   loading: false,
   error: null as string | null,
 });
@@ -37,5 +39,19 @@ export async function chooseWorkDir(): Promise<void> {
   const dir = await pickWorkDir();
   if (!dir) return;
   workspace.workDir = dir;
+  workspace.selected = null;
+  workspace.model = null;
   await refreshScripts();
+}
+
+/** 选中脚本并解析其参数。 */
+export async function selectScript(path: string): Promise<void> {
+  workspace.selected = path;
+  workspace.model = null;
+  workspace.error = null;
+  try {
+    workspace.model = await parseScript(path);
+  } catch (e) {
+    workspace.error = String(e);
+  }
 }
