@@ -1,38 +1,135 @@
 <script lang="ts">
-  // 底部日志停靠区。P0 为静态占位，P5 接入 xterm.js 与实际日志流。
-  type Line = { level: "info" | "plain"; text: string };
+  // 底部日志停靠区：xterm.js 渲染实时 stdout/stderr，支持自动滚动 / 暂停 / 清空 / 复制。
+  import { onDestroy, onMount } from "svelte";
+  import { Terminal } from "@xterm/xterm";
+  import { FitAddon } from "@xterm/addon-fit";
+  import "@xterm/xterm/css/xterm.css";
+  import { onLog, onProcessState } from "$lib/events";
 
-  const lines: Line[] = [
-    { level: "info", text: "llama_model_loader: loaded meta data with 29 key-value pairs" },
-    { level: "info", text: "llama_load_model_from_file: using device CUDA0 (NVIDIA RTX 4090, 24564 MiB)" },
-    { level: "info", text: "llama_new_context_with_model: n_ctx = 4096, n_batch = 2048" },
-    { level: "info", text: "llama_new_context_with_model: flash_attn = 1" },
-    { level: "plain", text: "main: server is listening on http://127.0.0.1:8080" },
-  ];
+  let host: HTMLDivElement;
+  let term: Terminal | undefined;
+  const fit = new FitAddon();
+
+  let autoScroll = $state(true);
+  let paused = $state(false);
+  let notice = $state("");
+
+  let buffered: string[] = [];
+  const unlisteners: Array<() => void> = [];
+
+  function append(text: string) {
+    if (!term) return;
+    if (paused) {
+      if (buffered.length < 5000) buffered.push(text);
+      return;
+    }
+    term.write(text, () => {
+      if (autoScroll) term?.scrollToBottom();
+    });
+  }
+
+  function togglePause() {
+    paused = !paused;
+    if (!paused && term) {
+      const text = buffered.join("");
+      buffered = [];
+      if (text) {
+        term.write(text, () => {
+          if (autoScroll) term?.scrollToBottom();
+        });
+      }
+    }
+  }
+
+  function clearLog() {
+    buffered = [];
+    term?.clear();
+  }
+
+  async function copyLog() {
+    if (!term) return;
+    term.selectAll();
+    const text = term.getSelection();
+    term.clearSelection();
+    try {
+      await navigator.clipboard.writeText(text);
+      notice = "已复制日志";
+    } catch {
+      notice = "复制失败，请手动选择复制";
+    }
+  }
+
+  onMount(() => {
+    term = new Terminal({
+      fontSize: 12,
+      fontFamily: '"Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace',
+      convertEol: false,
+      scrollback: 5000,
+      theme: { background: "#12161d", foreground: "#8b95a7", cursor: "#8b95a7" },
+    });
+    term.loadAddon(fit);
+    term.open(host);
+    fit.fit();
+
+    const observer = new ResizeObserver(() => {
+      try {
+        fit.fit();
+      } catch {
+        /* 容器尺寸暂不可用时忽略 */
+      }
+    });
+    observer.observe(host);
+
+    void (async () => {
+      unlisteners.push(
+        await onLog((payload) => append(payload.data)),
+        await onProcessState((payload) => {
+          if (payload.state === "running") {
+            buffered = [];
+            notice = "";
+            term?.reset();
+          } else {
+            notice = payload.code === null ? "进程已结束" : `进程已结束（退出码 ${payload.code}）`;
+          }
+        }),
+      );
+    })();
+
+    return () => observer.disconnect();
+  });
+
+  onDestroy(() => {
+    unlisteners.forEach((off) => off());
+    term?.dispose();
+  });
 </script>
 
 <section class="dock">
   <div class="head">
     <span class="title">日志</span>
+    {#if notice}<span class="notice">{notice}</span>{/if}
     <div class="right">
-      <button class="chip on" type="button">自动滚动</button>
-      <button class="chip" type="button">暂停</button>
-      <button class="chip" type="button">清空</button>
-      <button class="chip" type="button">复制</button>
+      <button
+        class="chip"
+        class:on={autoScroll}
+        type="button"
+        onclick={() => (autoScroll = !autoScroll)}
+      >
+        自动滚动
+      </button>
+      <button class="chip" class:on={paused} type="button" onclick={togglePause}>
+        {paused ? "继续" : "暂停"}
+      </button>
+      <button class="chip" type="button" onclick={clearLog}>清空</button>
+      <button class="chip" type="button" onclick={() => void copyLog()}>复制</button>
     </div>
   </div>
-  <div class="log">
-    {#each lines as l}
-      <div class="line" class:hl={l.level === "plain"}>
-        {#if l.level === "info"}<span class="lv">[info]</span>&nbsp;{/if}{l.text}
-      </div>
-    {/each}
-  </div>
+  <div class="log" bind:this={host}></div>
 </section>
 
 <style>
   .dock {
-    flex: 0 0 158px;
+    flex: 0 0 190px;
     border-top: 1px solid var(--border);
     background: var(--surface);
     display: flex;
@@ -52,6 +149,10 @@
   .title {
     font-weight: 600;
   }
+  .notice {
+    color: var(--faint);
+    font-size: 11px;
+  }
   .right {
     margin-left: auto;
     display: flex;
@@ -59,20 +160,11 @@
   }
   .log {
     flex: 1;
-    overflow: auto;
-    padding: 10px 14px;
-    font-family: var(--mono);
-    font-size: 12px;
-    line-height: 19px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 6px 8px;
   }
-  .line {
-    white-space: pre;
-    color: var(--muted);
-  }
-  .line.hl {
-    color: var(--text);
-  }
-  .lv {
-    color: var(--brand);
+  .log :global(.xterm) {
+    height: 100%;
   }
 </style>

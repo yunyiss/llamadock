@@ -9,6 +9,7 @@
 
 pub mod config;
 pub mod engine;
+pub mod process;
 pub mod script;
 pub mod workspace;
 

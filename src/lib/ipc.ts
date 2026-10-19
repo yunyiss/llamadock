@@ -91,3 +91,13 @@ export function switchEngineText(path: string, newExe: string): Promise<string> 
 export function switchEngineAll(oldExe: string, newExe: string): Promise<number> {
   return invoke<number>("switch_engine_all", { oldExe, newExe });
 }
+
+/** 启动脚本，返回进程号。 */
+export function startProcess(script: string): Promise<number> {
+  return invoke<number>("start_process", { script });
+}
+
+/** 停止运行中的进程（含子树）。 */
+export function stopProcess(): Promise<void> {
+  return invoke<void>("stop_process");
+}

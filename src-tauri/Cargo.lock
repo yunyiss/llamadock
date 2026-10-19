@@ -1989,6 +1989,7 @@ name = "llama-cpp-script-console"
 version = "0.1.0"
 dependencies = [
  "encoding_rs",
+ "libc",
  "serde",
  "serde_json",
  "tauri",

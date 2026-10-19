@@ -12,6 +12,7 @@
     applyEdits,
     cancelSave,
     commitSave,
+    initProcessEvents,
     initWorkspace,
     isDirty,
     prepareSave,
@@ -23,8 +24,9 @@
   const dirty = $derived(isDirty());
 
   onMount(() => {
-    // 启动时恢复上次工作目录并扫描脚本
+    // 启动时恢复上次工作目录、订阅进程事件
     void initWorkspace();
+    void initProcessEvents();
   });
 
   async function openTab(next: "params" | "raw") {

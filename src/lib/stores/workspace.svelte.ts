@@ -8,15 +8,22 @@ import {
   pickEngineFile,
   pickWorkDir,
   rebuildScript,
+  removeEngine,
   saveEngine,
   saveScript,
   scanScripts,
-  removeEngine,
   setCurrentEngine,
+  startProcess,
+  stopProcess,
   switchEngineAll,
   switchEngineText,
 } from "$lib/ipc";
-import type { EditEntry, EnginePath, ScriptEntry, ScriptModel } from "$lib/types";
+import { onProcessState } from "$lib/events";
+import type { EditEntry, EnginePath, ProcessState, ScriptEntry, ScriptModel } from "$lib/types";
+
+/** 当前是否为 Windows。 */
+export const IS_WINDOWS =
+  typeof navigator !== "undefined" && navigator.userAgent.includes("Windows");
 
 export const workspace = $state({
   workDir: null as string | null,
@@ -37,6 +44,12 @@ export const workspace = $state({
   currentEngine: null as string | null,
   /** 路径已失效的引擎名 */
   invalidEngines: [] as string[],
+  /** 进程状态 */
+  processState: "idle" as ProcessState,
+  pid: null as number | null,
+  exitCode: null as number | null,
+  /** 本次退出是否由用户主动停止触发 */
+  stopRequested: false,
   saving: false,
   loading: false,
   error: null as string | null,
@@ -172,6 +185,59 @@ export async function applyEngineToAll(oldExe: string, newExe: string): Promise<
   await refreshScripts();
   if (workspace.selected) await selectScript(workspace.selected);
   return count;
+}
+
+/** 订阅进程状态事件（应用启动时调用一次）。 */
+export async function initProcessEvents(): Promise<void> {
+  await onProcessState((payload) => {
+    if (payload.state === "running") {
+      workspace.processState = "running";
+      workspace.pid = payload.pid;
+      workspace.exitCode = null;
+      workspace.stopRequested = false;
+    } else {
+      workspace.processState = "exited";
+      workspace.pid = null;
+      workspace.exitCode = payload.code;
+    }
+  });
+}
+
+/** 当前脚本能否在本平台直接运行（Windows 无法原生执行 .sh）。 */
+export function canRun(): boolean {
+  if (!workspace.selected) return false;
+  const ext = workspace.selected.split(".").pop()?.toLowerCase();
+  return !(IS_WINDOWS && ext === "sh");
+}
+
+/** 当前脚本的端口（取自 --port 参数）。 */
+export function currentPort(): string | null {
+  return workspace.model?.params.find((p) => p.key === "--port")?.value ?? null;
+}
+
+/** 启动当前脚本。 */
+export async function runScript(): Promise<void> {
+  if (!workspace.selected || !canRun()) return;
+  if (isDirty()) {
+    workspace.error = "有未保存的改动，请先保存再启动";
+    return;
+  }
+  workspace.error = null;
+  try {
+    await startProcess(workspace.selected);
+  } catch (e) {
+    workspace.error = String(e);
+  }
+}
+
+/** 停止运行中的进程。 */
+export async function killScript(): Promise<void> {
+  workspace.stopRequested = true;
+  try {
+    await stopProcess();
+  } catch (e) {
+    workspace.error = String(e);
+  }
 }
 
 function resetSelection(): void {

@@ -10,6 +10,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(process::ProcessManager::default())
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::config::get_config,
@@ -28,6 +29,8 @@ pub fn run() {
             commands::engine::pick_engine_file,
             commands::engine::switch_engine_text,
             commands::engine::switch_engine_all,
+            commands::process::start_process,
+            commands::process::stop_process,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,15 +1,61 @@
 <script lang="ts">
-  // 底部状态栏。P0 为静态占位，P5 接入真实进程状态 / PID / 端口。
+  // 底部状态栏：进程状态 / PID / 端口 / 引擎，以及启动与停止。
+  import {
+    canRun,
+    currentPort,
+    killScript,
+    runScript,
+    workspace,
+  } from "$lib/stores/workspace.svelte";
+
+  const running = $derived(workspace.processState === "running");
+  const runnable = $derived(canRun());
+  const port = $derived(currentPort());
+
+  const tone = $derived(
+    running
+      ? "run"
+      : workspace.processState === "idle"
+        ? "idle"
+        : workspace.stopRequested || !workspace.exitCode
+          ? "stop"
+          : "err",
+  );
+
+  const statusText = $derived(
+    running
+      ? "运行中"
+      : workspace.processState === "idle"
+        ? "未启动"
+        : workspace.stopRequested || !workspace.exitCode
+          ? "已停止"
+          : `异常退出（退出码 ${workspace.exitCode}）`,
+  );
+
+  const dotClass = $derived(tone === "run" ? "on" : tone === "err" ? "err" : "off");
 </script>
 
 <footer class="statusbar">
-  <span class="st"><span class="dot on"></span> 运行中</span>
-  <span class="kv">PID <b>12345</b></span>
-  <span class="kv">端口 <b>8080</b></span>
-  <span class="kv">引擎 <b>b4000-cuda</b></span>
+  <span class="st {tone}"><span class="dot {dotClass}"></span> {statusText}</span>
+
+  {#if workspace.pid !== null}
+    <span class="kv">PID <b>{workspace.pid}</b></span>
+  {/if}
+  {#if port}
+    <span class="kv">端口 <b>{port}</b></span>
+  {/if}
+  {#if workspace.currentEngine}
+    <span class="kv">引擎 <b>{workspace.currentEngine}</b></span>
+  {/if}
+
   <div class="right">
-    <button class="btn" type="button">重启</button>
-    <button class="btn danger" type="button">停止</button>
+    {#if running}
+      <button class="btn danger" type="button" onclick={killScript}>停止</button>
+    {:else}
+      <button class="btn" type="button" disabled={!runnable} onclick={runScript}>
+        {runnable ? "启动" : "无法运行 .sh"}
+      </button>
+    {/if}
   </div>
 </footer>
 
@@ -29,8 +75,19 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    color: var(--brand);
     font-weight: 600;
+  }
+  .st.run {
+    color: var(--brand);
+  }
+  .st.stop {
+    color: var(--muted);
+  }
+  .st.idle {
+    color: var(--faint);
+  }
+  .st.err {
+    color: var(--danger);
   }
   .kv {
     color: var(--muted);
@@ -44,5 +101,9 @@
     margin-left: auto;
     display: flex;
     gap: 8px;
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
