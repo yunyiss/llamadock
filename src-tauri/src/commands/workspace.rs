@@ -8,7 +8,7 @@ use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 
 /// 支持的脚本扩展名。
-const SCRIPT_EXTS: [&str; 3] = ["cmd", "bat", "sh"];
+const SCRIPT_EXTS: [&str; 4] = ["cmd", "bat", "sh", "ps1"];
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -23,7 +23,7 @@ pub fn parse_text(path: String, text: String) -> ScriptModel {
 pub fn rebuild_script(path: String, edits: Vec<Edit>) -> Result<String, String> {
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     let (text, _enc) = encoding::decode(&bytes);
-    rebuild::apply_edits(&text, &edits)
+    rebuild::apply_edits(&text, &edits, parser::ScriptKind::from_path(&path))
         .ok_or_else(|| "未识别到 llama.cpp 启动行，请改用原始脚本编辑器".to_string())
 }
 

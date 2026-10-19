@@ -1,8 +1,58 @@
-//! 定位启动行：把 `^`（cmd）或 `\`（sh）续行拼成一条逻辑命令，再判断它是否直接调用 llama.cpp 可执行文件。
+//! 定位启动行：按脚本类型把续行拼成一条逻辑命令（cmd `^` / sh `\` / PowerShell 反引号），
+//! 再判断它是否直接调用 llama.cpp 可执行文件。
 //!
 //! 边界（宁可少覆盖，不猜）：含 `if` / `for` / `start` 的脚本不做结构化解析。
 
 use super::tokenizer::{self, Token};
+
+/// 脚本类型：不同 shell 的续行符不同，必须区分处理，否则会把普通字符误判成续行。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptKind {
+    /// Windows 批处理（`.cmd` / `.bat`）：行尾 `^` 续行
+    Cmd,
+    /// POSIX shell（`.sh` / `.bash` 等）：行尾 `\` 续行
+    Sh,
+    /// PowerShell（`.ps1` / `.psm1`）：行尾反引号续行
+    PowerShell,
+}
+
+impl ScriptKind {
+    /// 由文件路径推断脚本类型；未知扩展名按 cmd 处理。
+    pub fn from_path(path: &str) -> Self {
+        let ext = path.rsplit('.').next().unwrap_or_default().to_lowercase();
+        match ext.as_str() {
+            "sh" | "bash" | "zsh" | "ksh" | "dash" => ScriptKind::Sh,
+            "ps1" | "psm1" => ScriptKind::PowerShell,
+            _ => ScriptKind::Cmd,
+        }
+    }
+
+    /// 该类型的续行符（删除行首参数时也要吞掉上一行的这个字符）。
+    pub fn continuation_byte(self) -> u8 {
+        match self {
+            ScriptKind::Cmd => b'^',
+            ScriptKind::Sh => b'\\',
+            ScriptKind::PowerShell => b'`',
+        }
+    }
+
+    /// 行尾是否为续行符。
+    ///
+    /// 三种 shell 都要求续行符紧贴行尾；这里额外容忍行尾空白（手写脚本常见），
+    /// 以免把本该续行的脚本判成两段。
+    pub fn ends_with_continuation(self, line: &str) -> bool {
+        line.trim_end().ends_with(self.continuation_byte() as char)
+    }
+
+    /// 去掉行尾的续行符与多余空白。
+    pub fn drop_continuation<'a>(self, line: &'a str) -> &'a str {
+        let trimmed = line.trim_end();
+        trimmed
+            .strip_suffix(self.continuation_byte() as char)
+            .unwrap_or(trimmed)
+            .trim_end()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct LaunchLine {
@@ -56,22 +106,6 @@ fn is_comment(line: &str) -> bool {
         || trimmed.to_lowercase().starts_with("rem ")
 }
 
-/// 行尾是否为续行符。
-fn ends_with_continuation(line: &str) -> bool {
-    let trimmed = line.trim_end();
-    trimmed.ends_with('^') || trimmed.ends_with('\\')
-}
-
-/// 去掉行尾的续行符与多余空白。
-fn drop_continuation(line: &str) -> &str {
-    let trimmed = line.trim_end();
-    trimmed
-        .strip_suffix('^')
-        .or_else(|| trimmed.strip_suffix('\\'))
-        .unwrap_or(trimmed)
-        .trim_end()
-}
-
 /// 把拼接串里的偏移映射回原文偏移。
 fn translate(map: &[(usize, usize, usize)], offset: usize) -> Option<usize> {
     for &(joined_start, orig_start, len) in map {
@@ -82,7 +116,7 @@ fn translate(map: &[(usize, usize, usize)], offset: usize) -> Option<usize> {
     None
 }
 
-pub fn locate(text: &str) -> Option<LaunchLine> {
+pub fn locate(text: &str, kind: ScriptKind) -> Option<LaunchLine> {
     let lines = split_lines(text);
     let mut i = 0;
 
@@ -92,9 +126,9 @@ pub fn locate(text: &str) -> Option<LaunchLine> {
             continue;
         }
 
-        // 收集续行组
+        // 收集续行组（按脚本类型使用对应的续行符）
         let mut group = vec![i];
-        while ends_with_continuation(&text[lines[i].start..lines[i].start + lines[i].len])
+        while kind.ends_with_continuation(&text[lines[i].start..lines[i].start + lines[i].len])
             && i + 1 < lines.len()
         {
             i += 1;
@@ -106,7 +140,7 @@ pub fn locate(text: &str) -> Option<LaunchLine> {
         let mut map: Vec<(usize, usize, usize)> = Vec::new();
         for (k, &li) in group.iter().enumerate() {
             let line = &lines[li];
-            let segment = drop_continuation(&text[line.start..line.start + line.len]);
+            let segment = kind.drop_continuation(&text[line.start..line.start + line.len]);
             if k > 0 {
                 joined.push(' ');
             }
@@ -120,6 +154,14 @@ pub fn locate(text: &str) -> Option<LaunchLine> {
                 token.start = s;
                 token.end = e;
             }
+        }
+
+        // PowerShell 用 `&`（调用运算符）执行带引号的路径，这里先摘掉，
+        // 让启动行结构与 cmd / sh 保持一致（参数从第一个 token 之后开始）。
+        if kind == ScriptKind::PowerShell
+            && tokens.first().is_some_and(|t| t.text == "&" || t.text == ".")
+        {
+            tokens.remove(0);
         }
 
         if tokens.first().is_some_and(|t| is_exe(&t.text)) {

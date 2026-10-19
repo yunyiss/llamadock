@@ -7,6 +7,8 @@ pub mod tokenizer;
 
 use serde::Serialize;
 
+pub use locate::ScriptKind;
+
 use registry::{ParamGroup, ParamKind, REGISTRY};
 
 #[derive(Debug, Clone, Serialize)]
@@ -86,8 +88,8 @@ fn bool_value(token: &str) -> Option<&'static str> {
 }
 
 /// 分析脚本：定位启动行并把参数映射到注册表（保留未知项）。
-pub fn analyze(text: &str) -> Option<Analyzed> {
-    let launch = locate::locate(text)?;
+pub fn analyze(text: &str, kind: ScriptKind) -> Option<Analyzed> {
+    let launch = locate::locate(text, kind)?;
     let tokens = &launch.tokens;
     let mut args = Vec::new();
     let mut i = 1;
@@ -205,8 +207,9 @@ pub fn analyze(text: &str) -> Option<Analyzed> {
 
 pub fn parse(path: &str, text: &str) -> ScriptModel {
     let raw = text.to_string();
+    let kind = ScriptKind::from_path(path);
 
-    let Some(analyzed) = analyze(text) else {
+    let Some(analyzed) = analyze(text, kind) else {
         return ScriptModel {
             path: path.to_string(),
             found: false,
@@ -347,5 +350,52 @@ mod tests {
 
         assert_eq!(value_of(&model, "-m"), None);
         assert_eq!(value_of(&model, "-c").unwrap(), "4096");
+    }
+
+    #[test]
+    fn parses_sh_with_backslash_continuations() {
+        let text = "#!/bin/sh\n./llama-server \\\n  -m a.gguf \\\n  -c 4096 \\\n  --port 8089\n";
+        let model = parse("t.sh", text);
+
+        assert!(model.found);
+        assert_eq!(value_of(&model, "-m").unwrap(), "a.gguf");
+        assert_eq!(value_of(&model, "-c").unwrap(), "4096");
+        assert_eq!(value_of(&model, "--port").unwrap(), "8089");
+    }
+
+    #[test]
+    fn parses_ps1_with_backtick_continuations_and_call_operator() {
+        let text =
+            "& \"C:\\llama\\llama-server.exe\" `\n  -m \"a.gguf\" `\n  -c 4096 `\n  --port 8089\n";
+        let model = parse("t.ps1", text);
+
+        assert!(model.found);
+        assert_eq!(
+            model.launcher.as_ref().unwrap().exe,
+            "C:\\llama\\llama-server.exe"
+        );
+        assert_eq!(value_of(&model, "-m").unwrap(), "a.gguf");
+        assert_eq!(value_of(&model, "-c").unwrap(), "4096");
+        assert_eq!(value_of(&model, "--port").unwrap(), "8089");
+    }
+
+    #[test]
+    fn cmd_backslash_is_not_a_continuation() {
+        // cmd 的行尾 `\` 只是普通字符（如 Windows 路径分隔符），不能当成续行
+        let model = parse("t.cmd", "llama-server -m D:\\models\\\n-c 4096\n");
+
+        assert!(model.found);
+        assert_eq!(value_of(&model, "-m").unwrap(), "D:\\models\\");
+        assert_eq!(value_of(&model, "-c"), None);
+    }
+
+    #[test]
+    fn sh_caret_is_not_a_continuation() {
+        // sh 的行尾 `^` 也是普通字符，不能当成续行
+        let model = parse("t.sh", "llama-server -m a.gguf ^\n-c 4096\n");
+
+        assert!(model.found);
+        assert_eq!(value_of(&model, "-m").unwrap(), "a.gguf");
+        assert_eq!(value_of(&model, "-c"), None);
     }
 }

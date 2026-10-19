@@ -55,7 +55,7 @@ pub async fn pick_engine_file(app: AppHandle) -> Result<Option<String>, String> 
 pub fn switch_engine_text(path: String, new_exe: String) -> Result<String, String> {
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     let (text, _enc) = encoding::decode(&bytes);
-    rebuild::replace_exe(&text, &new_exe)
+    rebuild::replace_exe(&text, &new_exe, parser::ScriptKind::from_path(&path))
         .ok_or_else(|| "未识别到 llama.cpp 启动行，请改用原始脚本编辑器".to_string())
 }
 
@@ -93,7 +93,9 @@ pub fn switch_engine_all(app: AppHandle, old_exe: String, new_exe: String) -> Re
             continue;
         }
 
-        let Some(updated) = rebuild::replace_exe(&text, &new_exe) else {
+        let Some(updated) =
+            rebuild::replace_exe(&text, &new_exe, parser::ScriptKind::from_path(&path.to_string_lossy()))
+        else {
             continue;
         };
         std::fs::write(&path, encoding::encode(&updated, enc)).map_err(|e| e.to_string())?;

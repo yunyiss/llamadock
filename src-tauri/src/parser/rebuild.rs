@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use super::analyze;
+use super::{analyze, ScriptKind};
 use super::registry::{ParamDef, ParamKind, REGISTRY};
 use crate::fsutil::quoting::quote;
 
@@ -21,7 +21,7 @@ pub struct Edit {
 }
 
 /// 删除时的实际起点：吞掉多余空白；若该 token 位于续行行首，则连同上一行的续行符一起删除。
-fn deletion_start(text: &str, start: usize) -> usize {
+fn deletion_start(text: &str, start: usize, kind: ScriptKind) -> usize {
     let bytes = text.as_bytes();
     let mut i = start;
     while i > 0 && bytes[i - 1] == b' ' {
@@ -45,7 +45,7 @@ fn deletion_start(text: &str, start: usize) -> usize {
     while k > 0 && bytes[k - 1] == b' ' {
         k -= 1;
     }
-    if k > 0 && (bytes[k - 1] == b'^' || bytes[k - 1] == b'\\') {
+    if k > 0 && bytes[k - 1] == kind.continuation_byte() {
         k -= 1;
         while k > 0 && bytes[k - 1] == b' ' {
             k -= 1;
@@ -76,8 +76,8 @@ fn on_alias(def: &ParamDef, used: Option<&str>) -> String {
 }
 
 /// 应用改动并返回新的脚本文本；未识别到启动行时返回 `None`。
-pub fn apply_edits(text: &str, edits: &[Edit]) -> Option<String> {
-    let analyzed = analyze(text)?;
+pub fn apply_edits(text: &str, edits: &[Edit], kind: ScriptKind) -> Option<String> {
+    let analyzed = analyze(text, kind)?;
     let launch = &analyzed.launch;
 
     // (字节起点, 字节终点, 新片段)，稍后从后往前应用
@@ -126,7 +126,7 @@ pub fn apply_edits(text: &str, edits: &[Edit]) -> Option<String> {
                             Some(off) => reps.push((item.flag_span.0, item.flag_span.1, off)),
                             // 没有否定别名：直接移除该开关
                             None => reps.push((
-                                deletion_start(text, item.flag_span.0),
+                                deletion_start(text, item.flag_span.0, kind),
                                 item.flag_span.1,
                                 String::new(),
                             )),
@@ -173,7 +173,7 @@ pub fn apply_edits(text: &str, edits: &[Edit]) -> Option<String> {
             }
             // 原本有：移除
             (false, Some(item)) => {
-                let start = deletion_start(text, item.flag_span.0);
+                let start = deletion_start(text, item.flag_span.0, kind);
                 let end = item.value_span.map(|s| s.1).unwrap_or(item.flag_span.1);
                 reps.push((start, end, String::new()));
             }
@@ -194,8 +194,8 @@ pub fn apply_edits(text: &str, edits: &[Edit]) -> Option<String> {
 }
 
 /// 替换启动行的引擎可执行文件路径，返回新文本。
-pub fn replace_exe(text: &str, new_exe: &str) -> Option<String> {
-    let launch = super::locate::locate(text)?;
+pub fn replace_exe(text: &str, new_exe: &str, kind: ScriptKind) -> Option<String> {
+    let launch = super::locate::locate(text, kind)?;
     let token = launch.tokens.first()?;
     Some(format!(
         "{}{}{}",
@@ -208,6 +208,16 @@ pub fn replace_exe(text: &str, new_exe: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 测试用：默认按 cmd（`^` 续行）重建脚本。
+    fn apply_edits(text: &str, edits: &[Edit]) -> Option<String> {
+        super::apply_edits(text, edits, ScriptKind::Cmd)
+    }
+
+    /// 测试用：默认按 cmd 替换引擎路径。
+    fn replace_exe(text: &str, new_exe: &str) -> Option<String> {
+        super::replace_exe(text, new_exe, ScriptKind::Cmd)
+    }
 
     fn edit(key: &str, present: bool, value: Option<&str>) -> Edit {
         Edit {

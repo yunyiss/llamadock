@@ -1,6 +1,7 @@
 //! 分词：按引号规则切分一行命令，记录每个 token 在原行中的字节区间（供最小差异重建使用）。
 //!
-//! 说明：MVP 采用 cmd/sh 共用的简化规则，不处理 `^` 转义与多行续行；这类脚本会退回原始编辑器。
+//! 说明：MVP 采用 cmd/sh 共用的简化规则，不处理 `^` 转义；
+//! 多行续行的拼接（cmd `^` / sh `\` / PowerShell 反引号）在 locate 里按脚本类型处理。
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
