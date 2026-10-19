@@ -1,7 +1,7 @@
 {
-  "name": "llama-cpp-script-console",
+  "name": "llamadock",
   "version": "0.1.0",
-  "description": "llama.cpp 启动脚本可视化管理工具",
+  "description": "LlamaDock —— llama.cpp 启动脚本可视化管理工具",
   "type": "module",
   "scripts": {
     "dev": "vite dev",

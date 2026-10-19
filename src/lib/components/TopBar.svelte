@@ -3,7 +3,7 @@
 </script>
 
 <header class="topbar">
-  <div class="brand"><span class="logo">L</span> llama.cpp 中控台</div>
+  <div class="brand"><img class="logo" src="/app-icon.png" alt="" /> LlamaDock</div>
 
   <button class="workdir" type="button" onclick={chooseWorkDir} title="选择工作目录">
     <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -41,12 +41,8 @@
     width: 22px;
     height: 22px;
     border-radius: 6px;
-    background: linear-gradient(135deg, var(--brand), #2c8a3c);
-    display: grid;
-    place-items: center;
-    font-size: 12px;
-    color: #06210e;
-    font-weight: 800;
+    object-fit: cover;
+    display: block;
   }
   .workdir {
     display: flex;
