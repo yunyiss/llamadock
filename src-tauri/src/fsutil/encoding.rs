@@ -17,8 +17,7 @@ pub fn decode(bytes: &[u8]) -> (String, TextEncoding) {
     (text.into_owned(), TextEncoding::Gbk)
 }
 
-/// 按原编码写回，避免破坏中文注释（P3 保存脚本时使用）。
-#[allow(dead_code)]
+/// 按原编码写回，避免破坏中文注释。
 pub fn encode(text: &str, enc: TextEncoding) -> Vec<u8> {
     match enc {
         TextEncoding::Utf8 => text.as_bytes().to_vec(),

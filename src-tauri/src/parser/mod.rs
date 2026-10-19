@@ -1,6 +1,7 @@
 //! 脚本解析：定位启动行 → 分词 → 映射参数注册表；无法识别的部分原样保留（见技术方案 §4.2）。
 
 pub mod locate;
+pub mod rebuild;
 pub mod registry;
 pub mod tokenizer;
 
@@ -42,7 +43,25 @@ pub struct ScriptModel {
     pub raw: String,
 }
 
-/// 拆分 `--flag=value`；返回 (flag, 内联值)。
+/// 一个已解析的启动参数项，携带行内字节区间（供最小差异重建使用）。
+#[derive(Debug, Clone)]
+pub struct ArgItem {
+    pub def_index: Option<usize>,
+    /// 脚本中实际使用的别名
+    pub used_flag: Option<String>,
+    pub flag_span: (usize, usize),
+    pub value: Option<String>,
+    pub value_span: Option<(usize, usize)>,
+    /// 原始 token 文本
+    pub raw: String,
+}
+
+pub struct Analyzed {
+    pub launch: locate::LaunchLine,
+    pub args: Vec<ArgItem>,
+}
+
+/// 拆分 `--flag=value`，只取 flag 部分。
 fn split_flag(token: &str) -> &str {
     match token.find('=') {
         Some(eq) => &token[..eq],
@@ -54,10 +73,116 @@ fn inline_value(token: &str) -> Option<String> {
     token.find('=').map(|eq| token[eq + 1..].to_string())
 }
 
+/// 分析脚本：定位启动行并把参数映射到注册表（保留未知项）。
+pub fn analyze(text: &str) -> Option<Analyzed> {
+    let launch = locate::locate(text)?;
+    let tokens = &launch.tokens;
+    let mut args = Vec::new();
+    let mut i = 1;
+
+    while i < tokens.len() {
+        let tok = &tokens[i];
+        let raw_text = tok.text.as_str();
+
+        if !raw_text.starts_with('-') {
+            args.push(ArgItem {
+                def_index: None,
+                used_flag: None,
+                flag_span: (tok.start, tok.end),
+                value: None,
+                value_span: None,
+                raw: raw_text.to_string(),
+            });
+            i += 1;
+            continue;
+        }
+
+        let flag = split_flag(raw_text);
+        let mut index = registry::index_of(flag);
+        let mut inline = inline_value(raw_text);
+
+        // 兼容 `-c4096` 这类短参数紧贴取值的写法
+        if index.is_none() {
+            'find: for (ri, def) in REGISTRY.iter().enumerate() {
+                for &f in def.flags {
+                    if f.len() == 2 && raw_text.starts_with(f) && raw_text.len() > 2 {
+                        index = Some(ri);
+                        inline = Some(raw_text[f.len()..].to_string());
+                        break 'find;
+                    }
+                }
+            }
+        }
+
+        match index {
+            Some(ri) => {
+                let def = &REGISTRY[ri];
+                let (value, value_span) = match def.kind {
+                    ParamKind::Bool => {
+                        let v = if raw_text == "--no-flash-attn" {
+                            "off".to_string()
+                        } else {
+                            inline.clone().unwrap_or_else(|| "on".to_string())
+                        };
+                        (Some(v), None)
+                    }
+                    _ => match inline {
+                        Some(v) => (Some(v), None),
+                        None => {
+                            if i + 1 < tokens.len() && !tokens[i + 1].text.starts_with('-') {
+                                i += 1;
+                                let next = &tokens[i];
+                                (Some(next.text.clone()), Some((next.start, next.end)))
+                            } else {
+                                (None, None)
+                            }
+                        }
+                    },
+                };
+                args.push(ArgItem {
+                    def_index: Some(ri),
+                    used_flag: Some(raw_text.to_string()),
+                    flag_span: (tok.start, tok.end),
+                    value,
+                    value_span,
+                    raw: raw_text.to_string(),
+                });
+            }
+            None => {
+                // 未知 flag：连同其后紧跟的非 flag token 一起原样保留
+                args.push(ArgItem {
+                    def_index: None,
+                    used_flag: None,
+                    flag_span: (tok.start, tok.end),
+                    value: None,
+                    value_span: None,
+                    raw: raw_text.to_string(),
+                });
+                if inline.is_none() && i + 1 < tokens.len() && !tokens[i + 1].text.starts_with('-') {
+                    i += 1;
+                    let next = &tokens[i];
+                    args.push(ArgItem {
+                        def_index: None,
+                        used_flag: None,
+                        flag_span: (next.start, next.end),
+                        value: None,
+                        value_span: None,
+                        raw: next.text.clone(),
+                    });
+                }
+            }
+        }
+
+        i += 1;
+    }
+
+    Some(Analyzed { launch, args })
+}
+
 pub fn parse(path: &str, text: &str) -> ScriptModel {
     let raw = text.to_string();
 
-    let Some(launch) = locate::locate(text) else {
+    let Some(analyzed) = analyze(text) else {
         return ScriptModel {
             path: path.to_string(),
             found: false,
@@ -68,82 +193,20 @@ pub fn parse(path: &str, text: &str) -> ScriptModel {
         };
     };
 
-    let exe = launch
+    let exe = analyzed
+        .launch
         .tokens
         .first()
         .map(|t| t.text.clone())
         .unwrap_or_default();
 
-    // 每个注册项 → Option<Option<值>>：外层 Some 表示出现，内层为取值
     let mut matched: Vec<Option<Option<String>>> = vec![None; REGISTRY.len()];
-    let mut unknown: Vec<String> = Vec::new();
-
-    let args = &launch.tokens[1..];
-    let mut i = 0;
-    while i < args.len() {
-        let text = args[i].text.as_str();
-
-        if !text.starts_with('-') {
-            unknown.push(text.to_string());
-            i += 1;
-            continue;
+    let mut unknown = Vec::new();
+    for item in &analyzed.args {
+        match item.def_index {
+            Some(ri) => matched[ri] = Some(item.value.clone()),
+            None => unknown.push(item.raw.clone()),
         }
-
-        let flag = split_flag(text);
-        let mut index = registry::index_of(flag);
-        let mut value = inline_value(text);
-
-        // 兼容 `-c4096` 这类短参数紧贴取值的写法
-        if index.is_none() {
-            'find: for (ri, def) in REGISTRY.iter().enumerate() {
-                for &f in def.flags {
-                    if f.len() == 2 && text.starts_with(f) && text.len() > 2 {
-                        index = Some(ri);
-                        value = Some(text[f.len()..].to_string());
-                        break 'find;
-                    }
-                }
-            }
-        }
-
-        match index {
-            Some(ri) => {
-                let def = &REGISTRY[ri];
-                let resolved = match def.kind {
-                    ParamKind::Bool => Some(value.unwrap_or_else(|| {
-                        if text == "--no-flash-attn" {
-                            "off".to_string()
-                        } else {
-                            "on".to_string()
-                        }
-                    })),
-                    _ => match value {
-                        Some(v) => Some(v),
-                        None => {
-                            if i + 1 < args.len() && !args[i + 1].text.starts_with('-') {
-                                i += 1;
-                                Some(args[i].text.clone())
-                            } else {
-                                None
-                            }
-                        }
-                    },
-                };
-                matched[ri] = Some(resolved);
-            }
-            None => {
-                // 未知 flag：连同其后紧跟的非 flag token 一起原样保留
-                unknown.push(flag.to_string());
-                if let Some(v) = inline_value(text) {
-                    unknown.push(v);
-                } else if i + 1 < args.len() && !args[i + 1].text.starts_with('-') {
-                    i += 1;
-                    unknown.push(args[i].text.clone());
-                }
-            }
-        }
-
-        i += 1;
     }
 
     let params = REGISTRY
@@ -165,7 +228,7 @@ pub fn parse(path: &str, text: &str) -> ScriptModel {
         found: true,
         launcher: Some(Launcher {
             exe,
-            line_index: launch.line_index,
+            line_index: analyzed.launch.line_index,
         }),
         params,
         unknown,

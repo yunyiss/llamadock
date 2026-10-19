@@ -40,5 +40,12 @@ export interface ScriptModel {
   raw: string;
 }
 
+/** 提交给后端的单条参数改动。 */
+export interface EditEntry {
+  key: string;
+  present: boolean;
+  value: string | null;
+}
+
 /** 进程状态（P5 起由后端推送）。 */
 export type ProcessState = "idle" | "running" | "stopped" | "exited";
