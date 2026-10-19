@@ -27,6 +27,11 @@ export function scanScripts(): Promise<ScriptEntry[]> {
   return invoke<ScriptEntry[]>("scan_scripts");
 }
 
+/** 在工作目录里按模板新建脚本；返回新文件路径。 */
+export function createScript(name: string, kind: string): Promise<string> {
+  return invoke<string>("create_script", { name, kind });
+}
+
 /** 在系统文件管理器中打开目录。 */
 export function openFolder(path: string): Promise<void> {
   return invoke<void>("open_folder", { path });

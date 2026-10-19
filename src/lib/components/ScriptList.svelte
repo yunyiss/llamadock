@@ -1,8 +1,15 @@
 <script lang="ts">
   import { workspace, refreshScripts, chooseWorkDir, selectScript } from "$lib/stores/workspace.svelte";
-  import { openFolder } from "$lib/ipc";
+  import { openFolder, createScript } from "$lib/ipc";
 
   let query = $state("");
+
+  // 新建脚本对话框
+  let creating = $state(false);
+  let newName = $state("");
+  let newKind = $state("cmd");
+  let createError = $state("");
+  let busy = $state(false);
 
   const filtered = $derived(
     workspace.scripts.filter((s) => s.name.toLowerCase().includes(query.trim().toLowerCase())),
@@ -11,7 +18,36 @@
   function openCurrent() {
     if (workspace.workDir) void openFolder(workspace.workDir);
   }
+
+  function openCreate() {
+    newName = "";
+    newKind = "cmd";
+    createError = "";
+    creating = true;
+  }
+
+  async function doCreate() {
+    if (busy || !newName.trim()) return;
+    busy = true;
+    createError = "";
+    try {
+      const path = await createScript(newName, newKind);
+      await refreshScripts();
+      await selectScript(path);
+      creating = false;
+    } catch (e) {
+      createError = String(e);
+    } finally {
+      busy = false;
+    }
+  }
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (e.key === "Escape" && creating) creating = false;
+  }}
+/>
 
 <aside class="sidebar">
   <div class="head">
@@ -55,8 +91,50 @@
     </div>
 
     <div class="foot">
+      <button class="ghost" type="button" onclick={openCreate}>新建脚本</button>
       <button class="ghost" type="button" onclick={refreshScripts}>刷新</button>
       <button class="ghost" type="button" onclick={openCurrent}>打开文件夹</button>
+    </div>
+  {/if}
+
+  {#if creating}
+    <div class="overlay">
+      <div class="dialog">
+        <header><span class="title">新建脚本</span></header>
+        <div class="body">
+          <div class="field">
+            <label for="new-script-name">名称</label>
+            <input
+              id="new-script-name"
+              class="input"
+              placeholder="例如 Qwen3-8B"
+              bind:value={newName}
+              spellcheck="false"
+            />
+          </div>
+          <div class="field">
+            <label for="new-script-kind">类型</label>
+            <select id="new-script-kind" class="input" bind:value={newKind}>
+              <option value="cmd">.cmd — Windows 批处理</option>
+              <option value="bat">.bat — Windows 批处理</option>
+              <option value="sh">.sh — POSIX shell</option>
+              <option value="ps1">.ps1 — PowerShell</option>
+            </select>
+          </div>
+          {#if createError}
+            <div class="err">{createError}</div>
+          {/if}
+          <div class="tip">
+            会在工作目录里按模板生成最小 llama.cpp 启动脚本（含模型 / 上下文 / GPU 卸载 / 端口等占位参数），可直接在参数面板里改。
+          </div>
+        </div>
+        <footer>
+          <button class="ghost" type="button" onclick={() => (creating = false)}>取消</button>
+          <button class="btn" type="button" disabled={busy || !newName.trim()} onclick={doCreate}>
+            {busy ? "创建中…" : "创建"}
+          </button>
+        </footer>
+      </div>
     </div>
   {/if}
 </aside>
@@ -188,5 +266,60 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    background: rgba(3, 6, 10, 0.6);
+  }
+  .dialog {
+    width: 420px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+  }
+  .dialog header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .dialog .body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .field label {
+    width: 52px;
+    flex: 0 0 52px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .dialog .err {
+    font-size: 12px;
+    color: var(--danger);
+  }
+  .dialog .tip {
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--faint);
+  }
+  .dialog footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
   }
 </style>

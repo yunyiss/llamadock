@@ -17,6 +17,7 @@ pub fn run() {
             commands::config::get_config,
             commands::workspace::pick_work_dir,
             commands::workspace::scan_scripts,
+            commands::workspace::create_script,
             commands::workspace::open_folder,
             commands::workspace::path_exists,
             commands::workspace::open_url,
