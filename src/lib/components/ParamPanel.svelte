@@ -46,20 +46,20 @@
   }
 </script>
 
-<div class="content">
+<div class="panel">
   {#if !workspace.selected}
     <div class="empty">从左侧选择一个脚本以查看参数</div>
   {:else if !workspace.model}
     <div class="empty">解析中…</div>
   {:else}
+    <div class="head">
+      <span class="count">已设置 {setCount} / 共 {rows.length} 项</span>
+      <button class="chip" class:on={onlySet} type="button" onclick={() => (onlySet = !onlySet)}>
+        只看已设置
+      </button>
+    </div>
+    <div class="content">
     {#key workspace.selected}
-      <div class="toolbar">
-        <span class="count">已设置 {setCount} / 共 {rows.length} 项</span>
-        <button class="chip" class:on={onlySet} type="button" onclick={() => (onlySet = !onlySet)}>
-          只看已设置
-        </button>
-      </div>
-
       <!-- 引擎：就是启动行的可执行文件，本身当作可编辑参数 -->
       <section class="group">
         <div class="group-title">引擎</div>
@@ -159,10 +159,26 @@
         </div>
       </section>
     {/key}
+    </div>
   {/if}
 </div>
 
 <style>
+  .panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
   .content {
     flex: 1;
     overflow: auto;
@@ -181,17 +197,6 @@
   .group {
     flex: 0 0 auto;
     margin-bottom: 16px;
-  }
-  .toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 0 0 10px;
-    background: var(--bg);
   }
   .count {
     font-size: 11px;
