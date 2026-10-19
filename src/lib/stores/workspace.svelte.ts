@@ -1,14 +1,22 @@
-// 工作目录、脚本列表与编辑草稿状态（Svelte 5 rune 模块）。
+// 工作目录、脚本列表、引擎版本与编辑草稿状态（Svelte 5 rune 模块）。
 import {
   getConfig,
+  listEngines,
   parseScript,
   parseText,
+  pathExists,
+  pickEngineFile,
   pickWorkDir,
   rebuildScript,
+  saveEngine,
   saveScript,
   scanScripts,
+  removeEngine,
+  setCurrentEngine,
+  switchEngineAll,
+  switchEngineText,
 } from "$lib/ipc";
-import type { EditEntry, ScriptEntry, ScriptModel } from "$lib/types";
+import type { EditEntry, EnginePath, ScriptEntry, ScriptModel } from "$lib/types";
 
 export const workspace = $state({
   workDir: null as string | null,
@@ -24,6 +32,11 @@ export const workspace = $state({
   edits: [] as EditEntry[],
   /** 待确认的差异 */
   pending: null as { oldText: string; newText: string } | null,
+  /** 已保存的引擎版本 */
+  engines: [] as EnginePath[],
+  currentEngine: null as string | null,
+  /** 路径已失效的引擎名 */
+  invalidEngines: [] as string[],
   saving: false,
   loading: false,
   error: null as string | null,
@@ -36,9 +49,12 @@ export function isDirty(): boolean {
   return workspace.draft !== null && workspace.draft !== workspace.baseText;
 }
 
-/** 启动时恢复上次的工作目录并扫描。 */
+/** 启动时恢复配置、扫描脚本、加载引擎列表。 */
 export async function initWorkspace(): Promise<void> {
   const cfg = await getConfig();
+  workspace.engines = cfg.enginePaths ?? [];
+  workspace.currentEngine = cfg.currentEngine ?? null;
+  await refreshEngineValidity();
   if (cfg.workDir) {
     workspace.workDir = cfg.workDir;
     await refreshScripts();
@@ -96,6 +112,66 @@ export async function setRaw(text: string): Promise<void> {
   workspace.edits = [];
   workspace.draft = text;
   await refreshModelFromDraft();
+}
+
+/** 刷新引擎路径有效性。 */
+async function refreshEngineValidity(): Promise<void> {
+  const invalid: string[] = [];
+  for (const engine of workspace.engines) {
+    try {
+      if (!(await pathExists(engine.path))) invalid.push(engine.name);
+    } catch {
+      invalid.push(engine.name);
+    }
+  }
+  workspace.invalidEngines = invalid;
+}
+
+/** 重新加载引擎列表。 */
+export async function reloadEngines(): Promise<void> {
+  workspace.engines = await listEngines();
+  await refreshEngineValidity();
+}
+
+/** 从文件添加引擎版本。 */
+export async function addEngine(): Promise<void> {
+  const path = await pickEngineFile();
+  if (!path) return;
+  const name = path.split(/[\\/]/).pop() ?? path;
+  workspace.engines = await saveEngine(name, path);
+  workspace.currentEngine = name;
+  await refreshEngineValidity();
+}
+
+/** 移除一个引擎版本。 */
+export async function dropEngine(name: string): Promise<void> {
+  workspace.engines = await removeEngine(name);
+  if (workspace.currentEngine === name) workspace.currentEngine = null;
+  await refreshEngineValidity();
+}
+
+/** 选用某引擎：记录选择，并可应用到当前脚本。 */
+export async function useEngine(name: string, apply: boolean): Promise<void> {
+  const engine = workspace.engines.find((e) => e.name === name);
+  if (!engine) return;
+  workspace.currentEngine = name;
+  await setCurrentEngine(name);
+  if (!apply || !workspace.selected) return;
+  try {
+    workspace.edits = [];
+    workspace.draft = await switchEngineText(workspace.selected, engine.path);
+    await refreshModelFromDraft();
+  } catch (e) {
+    workspace.error = String(e);
+  }
+}
+
+/** 批量把引用 oldExe 的脚本切到 newExe，返回改动数量。 */
+export async function applyEngineToAll(oldExe: string, newExe: string): Promise<number> {
+  const count = await switchEngineAll(oldExe, newExe);
+  await refreshScripts();
+  if (workspace.selected) await selectScript(workspace.selected);
+  return count;
 }
 
 function resetSelection(): void {
@@ -164,9 +240,8 @@ export async function commitSave(): Promise<boolean> {
   try {
     await saveScript(path, pending.newText, workspace.baseText);
     workspace.pending = null;
-    const keep = path;
     resetSelection();
-    await selectScript(keep);
+    await selectScript(path);
     return true;
   } catch (e) {
     workspace.error = String(e);

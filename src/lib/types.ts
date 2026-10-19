@@ -7,10 +7,18 @@ export interface ScriptEntry {
   ext: string;
 }
 
+/** 已保存的 llama.cpp 引擎版本。 */
+export interface EnginePath {
+  name: string;
+  path: string;
+}
+
 /** 应用配置。 */
 export interface Config {
   workDir: string | null;
   recentDirs: string[];
+  enginePaths: EnginePath[];
+  currentEngine: string | null;
 }
 
 /** 参数类型。 */

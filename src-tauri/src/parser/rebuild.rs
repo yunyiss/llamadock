@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use super::registry::{ParamDef, ParamKind, REGISTRY};
 use super::analyze;
+use crate::fsutil::quoting::quote;
 
 /// 前端提交的单条参数改动。
 #[derive(Debug, Clone, Deserialize)]
@@ -26,15 +27,6 @@ fn line_bounds(text: &str, index: usize) -> Option<(usize, usize)> {
         pos += raw.len();
     }
     None
-}
-
-/// 值按需加引号（含空格或引号时）。
-fn quote(value: &str) -> String {
-    if value.is_empty() || value.chars().any(|c| c.is_whitespace() || c == '"') {
-        format!("\"{value}\"")
-    } else {
-        value.to_string()
-    }
 }
 
 fn off_alias(def: &ParamDef) -> Option<String> {
@@ -154,6 +146,24 @@ pub fn apply_edits(text: &str, edits: &[Edit]) -> Option<String> {
     ))
 }
 
+/// 替换启动行的引擎可执行文件路径，返回新文本。
+pub fn replace_exe(text: &str, new_exe: &str) -> Option<String> {
+    let launch = super::locate::locate(text)?;
+    let token = launch.tokens.first()?;
+    let (line_start, line_end) = line_bounds(text, launch.line_index)?;
+    let line = &text[line_start..line_end];
+
+    let mut new_line = line.to_string();
+    new_line.replace_range(token.start..token.end, &quote(new_exe));
+
+    Some(format!(
+        "{}{}{}",
+        &text[..line_start],
+        new_line,
+        &text[line_end..]
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,5 +206,15 @@ mod tests {
         let text = "llama-server -fa\n";
         let out = apply_edits(text, &[edit("--flash-attn", true, Some("off"))]).unwrap();
         assert_eq!(out, "llama-server --no-flash-attn\n");
+    }
+
+    #[test]
+    fn replaces_engine_and_keeps_rest() {
+        let text = "@echo off\n\"%~dp0llama-server.exe\" -c 4096\n";
+        let out = replace_exe(text, "D:\\llama\\cuda\\llama-server.exe").unwrap();
+        assert_eq!(
+            out,
+            "@echo off\nD:\\llama\\cuda\\llama-server.exe -c 4096\n"
+        );
     }
 }

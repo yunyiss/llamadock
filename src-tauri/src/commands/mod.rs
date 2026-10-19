@@ -8,6 +8,7 @@
 //! - config：配置读写
 
 pub mod config;
+pub mod engine;
 pub mod script;
 pub mod workspace;
 

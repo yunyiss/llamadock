@@ -73,6 +73,12 @@ pub fn scan_scripts(app: AppHandle) -> Result<Vec<ScriptEntry>, String> {
     Ok(out)
 }
 
+/// 判断路径是否存在（用于引擎 / 模型失效提示）。
+#[tauri::command]
+pub fn path_exists(path: String) -> bool {
+    Path::new(&path).exists()
+}
+
 /// 在系统文件管理器中打开指定目录。
 #[tauri::command]
 pub fn open_folder(path: String) -> Result<(), String> {

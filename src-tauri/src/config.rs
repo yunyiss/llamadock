@@ -5,6 +5,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
+/// 已保存的 llama.cpp 引擎版本。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnginePath {
+    pub name: String,
+    pub path: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Config {
@@ -12,6 +20,10 @@ pub struct Config {
     pub work_dir: Option<String>,
     /// 最近使用的工作目录（最新在最前，最多 5 个）
     pub recent_dirs: Vec<String>,
+    /// 已保存的引擎版本
+    pub engine_paths: Vec<EnginePath>,
+    /// 当前选中的引擎版本名
+    pub current_engine: Option<String>,
 }
 
 impl Config {
@@ -21,6 +33,26 @@ impl Config {
         self.recent_dirs.insert(0, dir.to_string());
         self.recent_dirs.truncate(5);
         self.work_dir = Some(dir.to_string());
+    }
+
+    /// 新增或更新一个引擎版本。
+    pub fn upsert_engine(&mut self, name: &str, path: &str) {
+        match self.engine_paths.iter_mut().find(|e| e.name == name) {
+            Some(existing) => existing.path = path.to_string(),
+            None => self.engine_paths.push(EnginePath {
+                name: name.to_string(),
+                path: path.to_string(),
+            }),
+        }
+        self.current_engine = Some(name.to_string());
+    }
+
+    /// 移除一个引擎版本。
+    pub fn remove_engine(&mut self, name: &str) {
+        self.engine_paths.retain(|e| e.name != name);
+        if self.current_engine.as_deref() == Some(name) {
+            self.current_engine = None;
+        }
     }
 }
 
