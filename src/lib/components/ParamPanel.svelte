@@ -59,7 +59,7 @@
               <div class="t">
                 可执行文件
                 <HelpTip
-                  text="脚本启动行里的 llama.cpp 可执行文件。写了环境变量（PATH）的脚本可以直接写 llama-server，否则一般写绝对路径（如 D:\llama\llama-server.exe）。改这里就是改脚本里的这一项，由脚本自己决定用哪个 llama.cpp。"
+                  text="脚本启动行里调用的 llama.cpp 可执行文件（如 llama-server、llama-cli，Windows 下为 .exe）。既可以直接写命令名（由系统 PATH 解析），也可以写完整的绝对路径。修改这里等同于修改脚本中的这一项。"
                 />
               </div>
               <div class="d">启动行首个 token</div>

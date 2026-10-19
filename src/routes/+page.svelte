@@ -8,6 +8,7 @@
   import LogTerminal from "$lib/components/LogTerminal.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
   import DiffDialog from "$lib/components/DiffDialog.svelte";
+  import TipLayer from "$lib/components/TipLayer.svelte";
   import {
     applyEdits,
     cancelSave,
@@ -83,6 +84,7 @@
   </div>
 
   <StatusBar />
+  <TipLayer />
 </div>
 
 {#if workspace.pending}

@@ -63,7 +63,14 @@
   .wrap:last-child {
     border-bottom: none;
   }
-  .wrap.absent {
+  /* 用颜色 / 控件淡化代替整体 opacity：整体 opacity 会把行内气泡也变半透明 */
+  .wrap.absent .label .t {
+    color: var(--muted);
+  }
+  .wrap.absent .label .d {
+    color: #47505f;
+  }
+  .wrap.absent .ctrl {
     opacity: 0.55;
   }
   .row {
