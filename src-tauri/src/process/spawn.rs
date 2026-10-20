@@ -37,6 +37,9 @@ pub fn build(script: &Path) -> Command {
 /// 构造启动命令：Unix 下把子进程放进独立进程组，便于整组终止。
 #[cfg(unix)]
 pub fn build(script: &Path) -> Command {
+    // pre_exec 由该 trait 提供；缺少导入时只有非 Windows 目标才会编译失败
+    use std::os::unix::process::CommandExt;
+
     let mut cmd = if is_powershell(script) {
         let mut c = Command::new("pwsh");
         c.arg("-NoProfile").arg("-File").arg(script);
