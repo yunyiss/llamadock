@@ -9,22 +9,23 @@
   } from "$lib/stores/workspace.svelte";
   import { pickEngineFile } from "$lib/ipc";
   import { GROUP_LABELS, GROUP_ORDER } from "$lib/params";
-  import { APPEND_KEY, EXE_KEY } from "$lib/types";
+  import { EXE_KEY } from "$lib/types";
   import ParamRow from "./ParamRow.svelte";
+  import ParamPicker from "./ParamPicker.svelte";
   import HelpTip from "./HelpTip.svelte";
 
   let engineOpen = $state(false);
-  let custom = $state("");
-  let onlySet = $state(false);
+  let pickerOpen = $state(false);
 
   const engineValue = $derived(workspace.model?.launcher?.exe ?? "");
-  const rows = $derived(workspace.model?.params ?? []);
-  const setCount = $derived(rows.filter((p) => p.present).length);
+  const all = $derived(workspace.model?.params ?? []);
+  // 面板只显示脚本里已经有的参数，未设置的通过「添加参数」选择器加入
+  const rows = $derived(all.filter((p) => p.present));
   const groups = $derived(
     GROUP_ORDER.map((key) => ({
       key,
       label: GROUP_LABELS[key],
-      rows: rows.filter((p) => p.group === key && (!onlySet || p.present)),
+      rows: rows.filter((p) => p.group === key),
     })).filter((g) => g.rows.length > 0),
   );
 
@@ -37,13 +38,6 @@
     setParam(EXE_KEY, true, path);
     engineOpen = false;
   }
-
-  function addCustom() {
-    const raw = custom.trim();
-    if (!raw) return;
-    setParam(`${APPEND_KEY}:${Date.now()}`, true, raw);
-    custom = "";
-  }
 </script>
 
 <div class="panel">
@@ -53,10 +47,7 @@
     <div class="empty">解析中…</div>
   {:else}
     <div class="head">
-      <span class="count">已设置 {setCount} / 共 {rows.length} 项</span>
-      <button class="chip" class:on={onlySet} type="button" onclick={() => (onlySet = !onlySet)}>
-        只看已设置
-      </button>
+      <span class="count">已设置 {rows.length} 项</span>
     </div>
     <div class="content">
     {#key workspace.selected}
@@ -126,40 +117,35 @@
         </section>
       {/each}
 
+      {#if rows.length === 0}
+        <div class="no-params">
+          这个脚本里还没有识别到参数。可以用下面的「添加参数」挑，或切到「原始脚本」直接编辑。
+        </div>
+      {/if}
+
       {#if workspace.model.unknown.length > 0}
         <section class="group">
           <div class="group-title">未识别参数（原样保留）</div>
           <div class="card">
             <div class="unknown">{workspace.model.unknown.join("   ")}</div>
             <div class="unknown-tip">
-              未登记的参数不会被面板结构化，可用下方「添加参数」或「原始脚本」编辑。
+              未登记的参数不会被面板结构化，可用「添加参数」里的自定义项或「原始脚本」编辑。
             </div>
           </div>
         </section>
       {/if}
 
       <section class="group">
-        <div class="group-title">添加参数</div>
         <div class="card">
-          <div class="row">
-            <div class="label">
-              <div class="t">自定义参数</div>
-              <div class="d">未登记的 flag 也能加</div>
-            </div>
-            <div class="ctrl">
-              <input
-                class="input"
-                placeholder="flag 与取值，例如 --cache-reuse 256"
-                bind:value={custom}
-                spellcheck="false"
-              />
-              <button class="btn" type="button" onclick={addCustom}>添加</button>
-            </div>
-          </div>
+          <button class="add" type="button" onclick={() => (pickerOpen = true)}>＋ 添加参数</button>
         </div>
       </section>
     {/key}
     </div>
+
+    {#if pickerOpen}
+      <ParamPicker params={all} onClose={() => (pickerOpen = false)} />
+    {/if}
   {/if}
 </div>
 
@@ -201,6 +187,25 @@
   .count {
     font-size: 11px;
     color: var(--faint);
+  }
+  .no-params {
+    margin-bottom: 16px;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--faint);
+  }
+  .add {
+    width: 100%;
+    padding: 10px;
+    border: none;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .add:hover {
+    background: var(--surface-2);
   }
   .group-title {
     margin-bottom: 8px;

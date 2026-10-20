@@ -6,6 +6,7 @@ export const GROUP_ORDER = [
   "server",
   "perf",
   "gpu",
+  "spec",
   "sampling",
   "log",
 ] as const satisfies readonly ParamGroup[];
@@ -15,6 +16,7 @@ export const GROUP_LABELS: Record<ParamGroup, string> = {
   server: "服务",
   perf: "性能",
   gpu: "GPU / 加速",
+  spec: "猜测解码",
   sampling: "采样",
   log: "日志",
 };

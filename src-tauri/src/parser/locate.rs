@@ -59,8 +59,6 @@ pub struct LaunchLine {
     /// 首行行号（从 0 开始）
     pub line_index: usize,
     pub tokens: Vec<Token>,
-    /// 命令在原文中的字节起点
-    pub start: usize,
     /// 命令在原文中的字节终点（不含行尾换行）
     pub end: usize,
 }
@@ -169,7 +167,6 @@ pub fn locate(text: &str, kind: ScriptKind) -> Option<LaunchLine> {
             return Some(LaunchLine {
                 line_index: lines[group[0]].no,
                 tokens,
-                start: lines[group[0]].start,
                 end: last.start + last.len,
             });
         }

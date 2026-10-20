@@ -107,7 +107,7 @@
             <input
               id="new-script-name"
               class="input"
-              placeholder="例如 Qwen3-8B"
+              placeholder="例如 Qwen-27B"
               bind:value={newName}
               spellcheck="false"
             />

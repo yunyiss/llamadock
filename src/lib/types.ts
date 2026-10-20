@@ -25,7 +25,7 @@ export interface Config {
 export type ParamKind = "number" | "bool" | "path" | "string" | "enum";
 
 /** 参数分组。 */
-export type ParamGroup = "model" | "server" | "perf" | "gpu" | "sampling" | "log";
+export type ParamGroup = "model" | "server" | "perf" | "gpu" | "spec" | "sampling" | "log";
 
 /** 单个参数（解析结果视图）。 */
 export interface ParamView {
