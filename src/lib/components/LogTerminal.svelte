@@ -5,7 +5,8 @@
   import { FitAddon } from "@xterm/addon-fit";
   import { WebLinksAddon } from "@xterm/addon-web-links";
   import "@xterm/xterm/css/xterm.css";
-  import { clearLogs, logs, workspace } from "$lib/stores/workspace.svelte";
+  import { clearLogs, logsTick, readLogs, workspace } from "$lib/stores/workspace.svelte";
+  import { newCursor, type LogCursor } from "$lib/log-buffer";
   import { openUrl } from "$lib/ipc";
 
   const COLLAPSED = 40;
@@ -14,6 +15,7 @@
 
   let host: HTMLDivElement;
   let term: Terminal | undefined;
+  let fit: FitAddon | undefined;
 
   let height = $state(DEFAULT_HEIGHT);
   let collapsed = $state(false);
@@ -21,45 +23,46 @@
   let atBottom = $state(true);
   let notice = $state("");
 
-  // 已经写给终端的进度（用于按脚本切换 / 增量追加）
+  // 每个脚本的消费游标：按块序号推进（长度变短不再等于"内容回退"，因此不再清屏重写）
+  let cursor: LogCursor = newCursor();
   let shownFor: string | null = null;
-  let shownLen = 0;
   let follow = true;
 
-  const buffer = $derived(workspace.selected ? (logs.get(workspace.selected) ?? "") : "");
+  // 订阅日志信号（追加 / 清空 / 淘汰都会触发）
+  const tick = $derived(logsTick());
 
   $effect(() => {
     const path = workspace.selected;
-    const text = buffer;
-    if (!term) return;
+    const signal = tick;
+    const folded = collapsed;
 
+    if (!term) return;
     if (path !== shownFor) {
       shownFor = path;
-      shownLen = 0;
+      cursor = newCursor();
       term.reset();
     }
-    if (text.length < shownLen) {
-      term.reset();
-      shownLen = 0;
-    }
-    if (text.length > shownLen) {
-      const chunk = text.slice(shownLen);
-      shownLen = text.length;
-      const wantFollow = follow;
-      term.write(chunk, () => {
-        if (wantFollow) term?.scrollToBottom();
-      });
-    }
+    // 折叠时先不消费，展开后一次性补齐（在 40px 高度里渲染每条日志毫无意义）
+    if (!path || folded || !signal) return;
+
+    const { text, cursor: next } = readLogs(path, cursor);
+    cursor = next;
+    if (!text) return;
+
+    const wantFollow = follow;
+    term.write(text, () => {
+      if (wantFollow) term?.scrollToBottom();
+    });
   });
 
   onMount(() => {
     // FitAddon 必须与 Terminal 同生命周期：放在模块级会在重新挂载时残留已销毁的实例引用
-    const fit = new FitAddon();
+    fit = new FitAddon();
     term = new Terminal({
       fontSize: 12,
       fontFamily: '"Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace',
       convertEol: false,
-      scrollback: 5000,
+      scrollback: 1500,
       theme: { background: "#12161d", foreground: "#8b95a7", cursor: "#8b95a7" },
     });
     term.loadAddon(fit);
@@ -82,8 +85,10 @@
     });
 
     const observer = new ResizeObserver(() => {
+      // 折叠时不重排：在 40px 高度里重排整个 scrollback 毫无意义，展开时再对齐
+      if (collapsed) return;
       try {
-        fit.fit();
+        fit?.fit();
       } catch {
         /* 尺寸暂不可用时忽略 */
       }
@@ -97,7 +102,7 @@
       term?.dispose();
       term = undefined;
       shownFor = null;
-      shownLen = 0;
+      cursor = newCursor();
     };
   });
 
@@ -123,6 +128,14 @@
     if (collapsed) {
       collapsed = false;
       height = savedHeight;
+      // 展开后等布局落定再对齐一次（折叠期间跳过了重排）
+      requestAnimationFrame(() => {
+        try {
+          fit?.fit();
+        } catch {
+          /* 尺寸暂不可用时忽略 */
+        }
+      });
     } else {
       savedHeight = height;
       collapsed = true;
@@ -139,7 +152,7 @@
   function clearLog() {
     if (workspace.selected) clearLogs(workspace.selected);
     term?.reset();
-    shownLen = 0;
+    cursor = newCursor();
     follow = true;
     atBottom = true;
   }

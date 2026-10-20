@@ -20,6 +20,7 @@ import {
   watchDir,
 } from "$lib/ipc";
 import { onLog, onProcessState, onScriptsChanged } from "$lib/events";
+import { LogStore, type LogCursor } from "$lib/log-buffer";
 import { SvelteMap } from "svelte/reactivity";
 import type { EditEntry, EnginePath, ProcessState, ScriptEntry, ScriptModel } from "$lib/types";
 
@@ -63,11 +64,14 @@ export interface Runtime {
 }
 
 const IDLE: Runtime = { state: "idle", pid: null, exitCode: null, stopRequested: false };
-const LOG_LIMIT = 400_000;
 
-/** 每个脚本独立的运行态与日志（支持同时运行多个脚本）。 */
+/** 每个脚本独立的运行态（支持同时运行多个脚本）。 */
 export const runtime = new SvelteMap<string, Runtime>();
-export const logs = new SvelteMap<string, string>();
+
+/** 日志缓冲：块数组 + 单脚本 / 全局预算（见 $lib/log-buffer）。 */
+const logStore = new LogStore();
+/** 日志变更信号：任何追加 / 清空 / 淘汰都会 +1，终端据此拉取增量。 */
+let logTick = $state(0);
 
 /** 取某个脚本的运行态。 */
 export function runtimeOf(path: string | null): Runtime {
@@ -75,15 +79,31 @@ export function runtimeOf(path: string | null): Runtime {
   return runtime.get(path) ?? IDLE;
 }
 
+/** 日志变更信号；在 $derived / $effect 中读取即可获得响应式依赖。 */
+export function logsTick(): number {
+  return logTick;
+}
+
+/** 正在运行或当前选中的脚本不会被淘汰（否则用户正看的日志会凭空少一截）。 */
+function logPinned(path: string): boolean {
+  return path === workspace.selected || runtimeOf(path).state === "running";
+}
+
+/** 读取某脚本自游标以来尚未消费的日志。 */
+export function readLogs(path: string, cursor: LogCursor): { text: string; cursor: LogCursor } {
+  void logTick; // 读取信号：保证调用方在响应式上下文里拿到依赖
+  return logStore.read(path, cursor);
+}
+
 /** 清空某个脚本的日志。 */
 export function clearLogs(path: string): void {
-  logs.set(path, "");
+  logStore.clear(path);
+  logTick += 1;
 }
 
 function appendLog(script: string, data: string): void {
-  let next = (logs.get(script) ?? "") + data;
-  if (next.length > LOG_LIMIT) next = next.slice(next.length - LOG_LIMIT);
-  logs.set(script, next);
+  logStore.append(script, data, logPinned);
+  logTick += 1;
 }
 
 let rebuildTimer: ReturnType<typeof setTimeout> | null = null;
@@ -290,7 +310,7 @@ export async function runScript(): Promise<void> {
     return;
   }
   workspace.error = null;
-  logs.set(path, "");
+  clearLogs(path);
   try {
     await startProcess(path);
   } catch (e) {
