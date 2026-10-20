@@ -9,6 +9,14 @@
 export const PER_SCRIPT_LIMIT = 512 * 1024;
 /** 全局字符预算 */
 export const TOTAL_LIMIT = 4 * 1024 * 1024;
+/**
+ * 全局超预算时的二级淘汰下限。
+ *
+ * 一级淘汰只动"非运行中"的脚本，所以同时跑 N 个脚本时上界会是 `N × 单脚本预算 + 全局预算`；
+ * 要成为严格上限，二级淘汰必须能压运行中的脚本——但只压到该下限、且丢最旧的块，
+ * 保证用户正在看的最新日志永远不丢。
+ */
+export const PINNED_FLOOR = 128 * 1024;
 
 interface Bucket {
   /** 保存的文本块（按时间顺序） */
@@ -48,12 +56,7 @@ export class LogStore {
     this.totalChars += text.length;
 
     // 单脚本超预算：从最旧的块开始整块丢弃（不做整串复制）
-    while (bucket.chars > PER_SCRIPT_LIMIT && bucket.chunks.length > 1) {
-      const head = bucket.chunks.shift()!;
-      bucket.chars -= head.length;
-      bucket.dropped += 1;
-      this.totalChars -= head.length;
-    }
+    this.trimTo(bucket, PER_SCRIPT_LIMIT);
 
     if (this.totalChars > TOTAL_LIMIT) this.evictByLru(pinned);
   }
@@ -97,14 +100,34 @@ export class LogStore {
     this.buckets.delete(path);
   }
 
-  /** 全局超预算：按最久未写入的顺序整桶淘汰（运行中 / 选中脚本除外）。 */
+  /** 把某个桶压到 limit 以内：从最旧的块开始丢，保护最新日志。 */
+  private trimTo(bucket: Bucket, limit: number): void {
+    while (bucket.chars > limit && bucket.chunks.length > 1) {
+      const head = bucket.chunks.shift()!;
+      bucket.chars -= head.length;
+      bucket.dropped += 1;
+      this.totalChars -= head.length;
+    }
+  }
+
+  /**
+   * 全局超预算时的两级淘汰，保证「总字符数严格不超过 TOTAL_LIMIT」：
+   * 1. 先整桶淘汰最久未写入的**非运行中 / 非选中**脚本；
+   * 2. 仍然超预算时，从最久未写入的桶开始（含运行中脚本）压到 PINNED_FLOOR。
+   */
   private evictByLru(pinned: (path: string) => boolean): void {
-    const victims = [...this.buckets.entries()]
+    const nonPinned = [...this.buckets.entries()]
       .filter(([path]) => !pinned(path))
       .sort((a, b) => a[1].at - b[1].at);
-    for (const [path] of victims) {
-      if (this.totalChars <= TOTAL_LIMIT) break;
+    for (const [path] of nonPinned) {
+      if (this.totalChars <= TOTAL_LIMIT) return;
       this.drop(path);
+    }
+
+    const rest = [...this.buckets.entries()].sort((a, b) => a[1].at - b[1].at);
+    for (const [, bucket] of rest) {
+      if (this.totalChars <= TOTAL_LIMIT) return;
+      this.trimTo(bucket, PINNED_FLOOR);
     }
   }
 }

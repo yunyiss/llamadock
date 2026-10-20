@@ -28,6 +28,31 @@
   let shownFor: string | null = null;
   let follow = true;
 
+  // 写入节流：洪泛期不再每个后端批次都写一次，攒到 WRITE_INTERVAL 合并写入
+  const WRITE_INTERVAL = 150;
+  let writeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 消费新日志并写入终端（节流到点的回调）。 */
+  function flushLogs() {
+    writeTimer = null;
+    const path = workspace.selected;
+    if (!term || !path || collapsed) return;
+
+    const { text, cursor: next } = readLogs(path, cursor);
+    cursor = next;
+    if (!text) return;
+
+    const wantFollow = follow;
+    term.write(text, () => {
+      if (wantFollow) term?.scrollToBottom();
+    });
+  }
+
+  function scheduleFlush() {
+    if (writeTimer !== null) return;
+    writeTimer = setTimeout(flushLogs, WRITE_INTERVAL);
+  }
+
   // 订阅日志信号（追加 / 清空 / 淘汰都会触发）
   const tick = $derived(logsTick());
 
@@ -38,21 +63,16 @@
 
     if (!term) return;
     if (path !== shownFor) {
+      // 切换脚本：先清屏，再立刻补齐该脚本已有日志（不等节流）
       shownFor = path;
       cursor = newCursor();
       term.reset();
+      flushLogs();
+      return;
     }
     // 折叠时先不消费，展开后一次性补齐（在 40px 高度里渲染每条日志毫无意义）
     if (!path || folded || !signal) return;
-
-    const { text, cursor: next } = readLogs(path, cursor);
-    cursor = next;
-    if (!text) return;
-
-    const wantFollow = follow;
-    term.write(text, () => {
-      if (wantFollow) term?.scrollToBottom();
-    });
+    scheduleFlush();
   });
 
   onMount(() => {
@@ -95,8 +115,12 @@
     });
     observer.observe(host);
 
-    // 卸载时全部释放，避免切换脚本 / 重载后残留（终端、滚动订阅、尺寸观察器）
+    // 卸载时全部释放，避免切换脚本 / 重载后残留（定时器、终端、滚动订阅、尺寸观察器）
     return () => {
+      if (writeTimer !== null) {
+        clearTimeout(writeTimer);
+        writeTimer = null;
+      }
       scrollSub.dispose();
       observer.disconnect();
       term?.dispose();
