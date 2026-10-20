@@ -4,7 +4,7 @@
   import TopBar from "$lib/components/TopBar.svelte";
   import ScriptList from "$lib/components/ScriptList.svelte";
   import ParamPanel from "$lib/components/ParamPanel.svelte";
-  import RawEditor from "$lib/components/RawEditor.svelte";
+  import { loadRawEditor } from "$lib/lazy";
   import LogTerminal from "$lib/components/LogTerminal.svelte";
   import StatusBar from "$lib/components/StatusBar.svelte";
   import DiffDialog from "$lib/components/DiffDialog.svelte";
@@ -85,12 +85,16 @@
       {:else if !workspace.baseText}
         <div class="placeholder">加载中…</div>
       {:else}
-        {#key workspace.selected}
-          <RawEditor
-            initial={workspace.draft ?? workspace.baseText}
-            onChange={(text) => void setRaw(text)}
-          />
-        {/key}
+        {#await loadRawEditor()}
+          <div class="placeholder">加载编辑器…</div>
+        {:then RawEditor}
+          {#key workspace.selected}
+            <RawEditor
+              initial={workspace.draft ?? workspace.baseText}
+              onChange={(text) => void setRaw(text)}
+            />
+          {/key}
+        {/await}
       {/if}
 
       <LogTerminal />
