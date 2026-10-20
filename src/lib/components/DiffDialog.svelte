@@ -29,6 +29,11 @@
 
   const addedCount = $derived(rows.filter((r) => r.kind === "add").length);
   const removedCount = $derived(rows.filter((r) => r.kind === "del").length);
+
+  // 超大改动只渲染前 MAX_PREVIEW 行：避免一次插入上万行 DOM 把界面卡死
+  const MAX_PREVIEW = 2000;
+  const shown = $derived(rows.length > MAX_PREVIEW ? rows.slice(0, MAX_PREVIEW) : rows);
+  const hiddenCount = $derived(rows.length > MAX_PREVIEW ? rows.length - MAX_PREVIEW : 0);
 </script>
 
 <div class="overlay">
@@ -42,11 +47,15 @@
     </header>
 
     <div class="diff">
-      {#each rows as r}
+      {#each shown as r}
         <div class="line {r.kind}">
           <span class="sign">{r.kind === "add" ? "+" : r.kind === "del" ? "-" : " "}</span>{r.text}
         </div>
       {/each}
+
+      {#if hiddenCount > 0}
+        <div class="more">改动过大，仅预览前 {MAX_PREVIEW} 行（还有 {hiddenCount} 行未显示）</div>
+      {/if}
     </div>
 
     <footer>
@@ -64,6 +73,11 @@
     place-items: center;
     background: rgba(0, 0, 0, 0.55);
     z-index: 10;
+  }
+  .more {
+    padding: 10px 14px;
+    color: var(--warn);
+    font-size: 11px;
   }
   .dialog {
     width: min(720px, 90vw);

@@ -24,10 +24,24 @@
   let tab = $state<"params" | "raw">("params");
   const dirty = $derived(isDirty());
 
+  let disposeEvents: (() => void) | null = null;
+
   onMount(() => {
     // 启动时恢复上次工作目录、订阅进程事件
     void initWorkspace();
-    void initProcessEvents();
+
+    let destroyed = false;
+    void initProcessEvents().then((off) => {
+      if (destroyed) off();
+      else disposeEvents = off;
+    });
+
+    // 销毁时取消订阅，避免残留订阅（热更新 / 重载时尤其重要）
+    return () => {
+      destroyed = true;
+      disposeEvents?.();
+      disposeEvents = null;
+    };
   });
 
   async function openTab(next: "params" | "raw") {

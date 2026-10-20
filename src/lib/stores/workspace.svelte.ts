@@ -234,21 +234,39 @@ export async function applyEngineToAll(oldExe: string, newExe: string): Promise<
   return count;
 }
 
-/** 订阅进程状态 / 日志 / 目录变更事件（应用启动时调用一次）。 */
-export async function initProcessEvents(): Promise<void> {
-  await onScriptsChanged(() => {
-    workspace.scriptsStale = true;
-  });
-  await onProcessState((payload) => {
-    const prev = runtime.get(payload.script) ?? IDLE;
-    runtime.set(payload.script, {
-      state: payload.state === "running" ? "running" : "exited",
-      pid: payload.pid,
-      exitCode: payload.code,
-      stopRequested: payload.state === "running" ? false : prev.stopRequested,
-    });
-  });
-  await onLog((payload) => appendLog(payload.script, payload.data));
+let eventsInit: Promise<() => void> | null = null;
+
+/**
+ * 订阅进程状态 / 日志 / 目录变更事件，返回取消订阅函数。
+ *
+ * 重复调用（热更新、重新挂载）会复用同一个订阅，不会叠加；取消后再次调用会重新订阅。
+ */
+export function initProcessEvents(): Promise<() => void> {
+  if (!eventsInit) {
+    eventsInit = (async () => {
+      const unlisteners = await Promise.all([
+        onScriptsChanged(() => {
+          workspace.scriptsStale = true;
+        }),
+        onProcessState((payload) => {
+          const prev = runtime.get(payload.script) ?? IDLE;
+          runtime.set(payload.script, {
+            state: payload.state === "running" ? "running" : "exited",
+            pid: payload.pid,
+            exitCode: payload.code,
+            stopRequested: payload.state === "running" ? false : prev.stopRequested,
+          });
+        }),
+        onLog((payload) => appendLog(payload.script, payload.data)),
+      ]);
+
+      return () => {
+        for (const off of unlisteners) off();
+        eventsInit = null;
+      };
+    })();
+  }
+  return eventsInit;
 }
 
 /** 当前脚本能否在本平台直接运行（Windows 无法原生执行 .sh）。 */

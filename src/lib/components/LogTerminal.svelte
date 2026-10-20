@@ -14,7 +14,6 @@
 
   let host: HTMLDivElement;
   let term: Terminal | undefined;
-  const fit = new FitAddon();
 
   let height = $state(DEFAULT_HEIGHT);
   let collapsed = $state(false);
@@ -54,6 +53,8 @@
   });
 
   onMount(() => {
+    // FitAddon 必须与 Terminal 同生命周期：放在模块级会在重新挂载时残留已销毁的实例引用
+    const fit = new FitAddon();
     term = new Terminal({
       fontSize: 12,
       fontFamily: '"Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace',
@@ -74,7 +75,7 @@
     term.open(host);
     fit.fit();
 
-    term.onScroll(() => {
+    const scrollSub = term.onScroll(() => {
       const buf = term!.buffer.active;
       follow = buf.viewportY >= buf.baseY;
       atBottom = follow;
@@ -89,7 +90,15 @@
     });
     observer.observe(host);
 
-    return () => observer.disconnect();
+    // 卸载时全部释放，避免切换脚本 / 重载后残留（终端、滚动订阅、尺寸观察器）
+    return () => {
+      scrollSub.dispose();
+      observer.disconnect();
+      term?.dispose();
+      term = undefined;
+      shownFor = null;
+      shownLen = 0;
+    };
   });
 
   function onGripDown(event: MouseEvent) {
