@@ -8,10 +8,10 @@
 
 !macro NSIS_HOOK_POSTUNINSTALL
   ; 先尝试常规清理；被占用而删不掉的会在重启后由系统回收，不影响后续安装
-  RMDir /r "$LOCALAPPDATA\com.wbai.llamadock"
+  RMDir /r "$LOCALAPPDATA\com.llamadock.desktop"
 !macroend
 
 ; 某些模板在卸载前调用，一并定义（两个宏都是幂等的 RMDir /r）
 !macro NSIS_HOOK_PREUNINSTALL
-  RMDir /r "$LOCALAPPDATA\com.wbai.llamadock"
+  RMDir /r "$LOCALAPPDATA\com.llamadock.desktop"
 !macroend
