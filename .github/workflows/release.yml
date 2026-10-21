@@ -85,32 +85,37 @@ jobs:
       - name: 构建
         run: npm run tauri -- build ${{ matrix.args }}
 
-      # 统一命名：LlamaDock_<版本>_<平台>-portable.<扩展名>，平台与形态一眼可辨
+      # 外层文件名统一为 LlamaDock_<版本>_<平台>-portable.<扩展名>，一眼可辨；
+      # 解压出来的内容统一叫 LlamaDock（Win: LlamaDock.exe / mac: LlamaDock.app /
+      # Linux: LlamaDock.AppImage 或 LlamaDock），不把版本号带进用户看到的程序名。
       - name: 整理产物（统一命名）
         shell: bash
         env:
           VERSION: ${{ steps.version.outputs.value }}
           TARGET: ${{ matrix.target }}
         run: |
-          mkdir -p dist
+          mkdir -p dist stage
           case "$TARGET" in
             windows)
-              cp src-tauri/target/release/llamadock.exe \
-                 "dist/LlamaDock_${VERSION}_windows-portable.exe"
+              cp src-tauri/target/release/llamadock.exe stage/LlamaDock.exe
+              # Windows runner 的 Git Bash 没有 zip，用 PowerShell 自带的 Compress-Archive
+              powershell.exe -NoProfile -Command \
+                "Compress-Archive -LiteralPath 'stage/LlamaDock.exe' -DestinationPath 'dist/LlamaDock_${VERSION}_windows-portable.zip' -Force"
               ;;
             macos-arm64)
               ( cd src-tauri/target/aarch64-apple-darwin/release/bundle/macos \
                 && zip -qry "$GITHUB_WORKSPACE/dist/LlamaDock_${VERSION}_macos-arm64-portable.zip" LlamaDock.app )
               ;;
             linux-bundled)
-              cp src-tauri/target/release/bundle/appimage/*.AppImage \
-                 "dist/LlamaDock_${VERSION}_linux-bundled-portable.AppImage"
+              cp src-tauri/target/release/bundle/appimage/*.AppImage stage/LlamaDock.AppImage
+              ( cd stage && zip -q "$GITHUB_WORKSPACE/dist/LlamaDock_${VERSION}_linux-bundled-portable.zip" LlamaDock.AppImage )
               ;;
             linux-system)
-              tar -czf "dist/LlamaDock_${VERSION}_linux-system-portable.tar.gz" \
-                  -C src-tauri/target/release llamadock
+              cp src-tauri/target/release/llamadock stage/LlamaDock
+              tar -czf "dist/LlamaDock_${VERSION}_linux-system-portable.tar.gz" -C stage LlamaDock
               ;;
           esac
+          rm -rf stage
           ls -l dist
 
       - uses: actions/upload-artifact@v4
@@ -134,33 +139,29 @@ jobs:
             '' \
             '| 平台 | 文件 | 说明 |' \
             '| --- | --- | --- |' \
-            "| Windows | LlamaDock_${VERSION}_windows-portable.exe | 单文件，双击即用；需系统 WebView2（Win10 1803+ / Win11 自带） |" \
-            "| macOS | LlamaDock_${VERSION}_macos-arm64-portable.zip | **Apple Silicon（M 系列）专用**；解压得 LlamaDock.app，未签名，首次打开需右键 →「打开」 |" \
-            "| Linux | LlamaDock_${VERSION}_linux-bundled-portable.AppImage | **自带 WebKitGTK**，任意发行版可跑（约 78MB）；未装 FUSE 时用 --appimage-extract-and-run |" \
-            "| Linux | LlamaDock_${VERSION}_linux-system-portable.tar.gz | **依赖系统 WebView**，解压即用（约 7MB）；需自行安装 webkit2gtk-4.1 与 GTK3 |" \
+            "| Windows | LlamaDock_${VERSION}_windows-portable.zip | 解压得 LlamaDock.exe，双击即用；需系统 WebView2（Win10 1803+ / Win11 自带） |" \
+            "| macOS | LlamaDock_${VERSION}_macos-arm64-portable.zip | 解压得 LlamaDock.app；Apple Silicon（M 系列） |" \
+            "| Linux | LlamaDock_${VERSION}_linux-bundled-portable.zip | 解压得 LlamaDock.AppImage，自带 WebKitGTK，任意发行版可跑（约 78MB） |" \
+            "| Linux | LlamaDock_${VERSION}_linux-system-portable.tar.gz | 解压得 LlamaDock，体积最小（约 7MB），使用系统已有的 WebKitGTK |" \
             '' \
-            'Linux 两个版本按需二选一：追求「一个文件跑遍所有发行版」选 bundled；不想让程序自带一整套浏览器引擎、且愿意装系统依赖的选 system。' \
+            '### 怎么选' \
             '' \
-            'macOS 暂不提供 Intel 版本。' \
+            '- **Windows**：解压后双击 LlamaDock.exe，不需要安装。' \
+            '- **macOS**：仅支持 Apple Silicon。应用未签名，首次打开请右键 →「打开」；之后可直接双击。' \
+            '- **Linux**：两个版本二选一。bundled 版自带浏览器引擎，任何发行版下载即用；system 版体积小得多，但要求系统已安装 webkit2gtk-4.1 与 GTK3。AppImage 解压后如无执行权限，先执行 chmod +x LlamaDock.AppImage。' \
             '' \
             '```bash' \
-            '# Debian / Ubuntu / Kali' \
-            'sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0' \
-            '' \
-            '# Fedora' \
-            'sudo dnf install webkit2gtk4.1 gtk3' \
-            '' \
-            '# Arch' \
-            'sudo pacman -S webkit2gtk-4.1 gtk3' \
+            '# Linux system 版的依赖（bundled 版无需安装）' \
+            'sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0   # Debian / Ubuntu / Kali' \
+            'sudo dnf install webkit2gtk4.1 gtk3               # Fedora' \
+            'sudo pacman -S webkit2gtk-4.1 gtk3                # Arch' \
             '```' \
             '' \
-            '> 安装包（Windows nsis / macOS dmg / Linux deb）本轮暂不构建，配置已保留，需要时可开启。' \
-            '' \
-            '## 说明' \
+            '## 关于 LlamaDock' \
             '' \
             '- 管理本地 llama.cpp 启动脚本的小工具：可视化编辑启动参数、切换引擎版本、在工具内启动并查看实时日志，全程不弹独立终端窗口。' \
             '- 工具本身只是「壳」，不参与推理，不影响 llama.cpp 性能。' \
-            '- 配置随程序目录（便携模式），不污染系统环境。' \
+            '- 配置保存在程序所在目录（便携模式），不污染系统环境。' \
             > release-notes.md
           # 同一 tag 的四个平台 job 并发跑，Release 只允许建一次：
           # 已存在时同步一次说明（否则重跑会沿用旧正文），再追加产物
@@ -175,9 +176,9 @@ jobs:
           # 清理旧命名遗留的附件（--clobber 只覆盖同名文件，改过命名后旧文件会一直留着）。
           # 注意：不能用「是否在 dist/ 里」判断——四个平台 job 并发跑，彼此看不到对方的产物，
           # 那样会误删同一次运行里其他平台刚上传的附件。这里只认本次四产物的白名单。
-          expected="LlamaDock_${VERSION}_windows-portable.exe
+          expected="LlamaDock_${VERSION}_windows-portable.zip
           LlamaDock_${VERSION}_macos-arm64-portable.zip
-          LlamaDock_${VERSION}_linux-bundled-portable.AppImage
+          LlamaDock_${VERSION}_linux-bundled-portable.zip
           LlamaDock_${VERSION}_linux-system-portable.tar.gz"
           for name in $(gh release view "$tag" --json assets --jq '.assets[].name'); do
             case "$name" in
