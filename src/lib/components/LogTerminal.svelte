@@ -1,11 +1,11 @@
 <script lang="ts">
   // 底部日志停靠区：xterm.js 渲染；按脚本分流日志；可拖动调整高度 / 收起；ctrl+点击链接用浏览器打开。
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
   import { WebLinksAddon } from "@xterm/addon-web-links";
   import "@xterm/xterm/css/xterm.css";
-  import { clearLogs, logsTick, readLogs, workspace } from "$lib/stores/workspace.svelte";
+  import { clearLogs, logPanel, logsTick, readLogs, workspace } from "$lib/stores/workspace.svelte";
   import { newCursor, type LogCursor } from "$lib/log-buffer";
   import { openUrl } from "$lib/ipc";
 
@@ -17,9 +17,11 @@
   let term: Terminal | undefined;
   let fit: FitAddon | undefined;
 
-  let height = $state(DEFAULT_HEIGHT);
-  let collapsed = $state(false);
+  // 打开应用时默认收起；启动脚本后由 logPanel.expandTick 触发弹出
+  let height = $state(COLLAPSED);
+  let collapsed = $state(true);
   let savedHeight = DEFAULT_HEIGHT;
+  let dragging = $state(false);
   let atBottom = $state(true);
   let notice = $state("");
 
@@ -132,6 +134,7 @@
 
   function onGripDown(event: MouseEvent) {
     event.preventDefault();
+    dragging = true;
     const startY = event.clientY;
     const startHeight = height;
 
@@ -139,33 +142,54 @@
       const max = Math.max(MIN_HEIGHT, window.innerHeight * 0.85);
       height = Math.min(Math.max(startHeight + (startY - e.clientY), MIN_HEIGHT), max);
       collapsed = false;
+      savedHeight = height;
     };
     const up = () => {
+      dragging = false;
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
+      refit();
     };
     window.addEventListener("mousemove", move);
     window.addEventListener("mouseup", up);
   }
 
-  function toggleCollapse() {
-    if (collapsed) {
-      collapsed = false;
-      height = savedHeight;
-      // 展开后等布局落定再对齐一次（折叠期间跳过了重排）
-      requestAnimationFrame(() => {
-        try {
-          fit?.fit();
-        } catch {
-          /* 尺寸暂不可用时忽略 */
-        }
-      });
-    } else {
-      savedHeight = height;
-      collapsed = true;
-      height = COLLAPSED;
-    }
+  /** 展开后等布局落定再对齐一次（折叠期间跳过了重排）。 */
+  function refit() {
+    requestAnimationFrame(() => {
+      try {
+        fit?.fit();
+      } catch {
+        /* 尺寸暂不可用时忽略 */
+      }
+    });
   }
+
+  function expand() {
+    if (!collapsed) return;
+    collapsed = false;
+    height = Math.max(savedHeight, DEFAULT_HEIGHT);
+    refit();
+  }
+
+  function collapse() {
+    if (collapsed) return;
+    savedHeight = height;
+    collapsed = true;
+    height = COLLAPSED;
+  }
+
+  function toggleCollapse() {
+    if (collapsed) expand();
+    else collapse();
+  }
+
+  // 启动脚本后自动弹出（打开应用时保持收起状态）
+  $effect(() => {
+    const tick = logPanel.expandTick;
+    if (!tick) return;
+    untrack(expand);
+  });
 
   function jumpToBottom() {
     term?.scrollToBottom();
@@ -195,7 +219,7 @@
   }
 </script>
 
-<section class="dock" style="flex: 0 0 {height}px">
+<section class="dock" class:dragging style:flex-basis="{height}px">
   <button
     class="grip"
     type="button"
@@ -229,7 +253,14 @@
     background: var(--surface);
     display: flex;
     flex-direction: column;
+    flex: 0 0 auto;
     min-height: 0;
+    /* 展开 / 收起的高度动画；拖动时关闭以免跟手延迟 */
+    transition: flex-basis 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+  .dock.dragging {
+    transition: none;
   }
   .grip {
     height: 6px;

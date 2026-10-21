@@ -73,6 +73,9 @@ const logStore = new LogStore();
 /** 日志变更信号：任何追加 / 清空 / 淘汰都会 +1，终端据此拉取增量。 */
 let logTick = $state(0);
 
+/** 日志面板展开信号：启动脚本时 +1，日志组件据此自动弹出（打开应用时默认收起）。 */
+export const logPanel = $state({ expandTick: 0 });
+
 /** 取某个脚本的运行态。 */
 export function runtimeOf(path: string | null): Runtime {
   if (!path) return IDLE;
@@ -313,6 +316,8 @@ export async function runScript(): Promise<void> {
   clearLogs(path);
   try {
     await startProcess(path);
+    // 启动成功后弹出日志面板（组件用 CSS 过渡做展开动画）
+    logPanel.expandTick += 1;
   } catch (e) {
     workspace.error = String(e);
   }
