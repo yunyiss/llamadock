@@ -1,10 +1,25 @@
 name: Release
 
+# 正式产物（全部免安装，解压即用）：
+#   windows  LlamaDock_<版本>_windows-portable.exe             单文件，依赖系统 WebView2
+#   macOS    LlamaDock_<版本>_macos-arm64-portable.zip         Apple Silicon（M 系列）专用，依赖系统 WKWebView
+#   linux    LlamaDock_<版本>_linux-bundled-portable.AppImage  自带 WebKitGTK（约 78MB），任意发行版可跑
+#   linux    LlamaDock_<版本>_linux-system-portable.tar.gz     仅裸二进制（约 7MB），依赖系统 webkit2gtk-4.1 / GTK3
+#
+# macOS 只出 arm64：当前的 Mac 用户基本是 M 系列芯片；Intel 机器仅供临时验证，不走正式发布。
+# 安装包（nsis / dmg / deb）本轮不构建，但配置完整保留在 src-tauri/tauri.conf.json
+# （identifier、NSIS 卸载钩子、bundle targets），需要时改回对应的 matrix args 即可开回来。
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
+
+# 创建 / 更新 Release 需要 contents: write。
+# 新版仓库的 GITHUB_TOKEN 默认是只读，缺这一行时 gh release 建草稿 Release 会报
+# "Resource not accessible by integration"。
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,15 +28,34 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            args: "--bundles nsis"
+            target: windows
+            # 安装版换成 "--bundles nsis"（需要 NSIS 卸载钩子，配置已在 tauri.conf.json 里）
+            args: "--no-bundle"
           - os: macos-latest
-            args: "--bundles dmg app"
+            target: macos-arm64
+            # 显式指定 arm64，避免 runner 架构变化影响产物
+            # 安装版换成 "--target aarch64-apple-darwin --bundles dmg app"
+            args: "--target aarch64-apple-darwin --bundles app"
           - os: ubuntu-22.04
-            args: "--bundles appimage deb"
+            target: linux-bundled
+            # 自带 WebKitGTK，体积大但任意发行版可跑
+            # 安装版换成 "--bundles appimage deb"
+            args: "--bundles appimage"
+          - os: ubuntu-22.04
+            target: linux-system
+            # 只出裸二进制，依赖目标机自带的 webkit2gtk-4.1 / GTK3，体积最小
+            args: "--no-bundle"
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: 读取版本号
+        id: version
+        shell: bash
+        run: |
+          v=$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json | head -n 1)
+          echo "value=$v" >> "$GITHUB_OUTPUT"
 
       - name: 安装 Linux 依赖
         if: matrix.os == 'ubuntu-22.04'
@@ -36,6 +70,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: 添加 macOS arm64 目标
+        if: matrix.os == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin
+
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -44,12 +82,103 @@ jobs:
       - run: npm run check
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: 构建
+        run: npm run tauri -- build ${{ matrix.args }}
+
+      # 统一命名：LlamaDock_<版本>_<平台>-portable.<扩展名>，平台与形态一眼可辨
+      - name: 整理产物（统一命名）
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.value }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p dist
+          case "$TARGET" in
+            windows)
+              cp src-tauri/target/release/llamadock.exe \
+                 "dist/LlamaDock_${VERSION}_windows-portable.exe"
+              ;;
+            macos-arm64)
+              ( cd src-tauri/target/aarch64-apple-darwin/release/bundle/macos \
+                && zip -qry "$GITHUB_WORKSPACE/dist/LlamaDock_${VERSION}_macos-arm64-portable.zip" LlamaDock.app )
+              ;;
+            linux-bundled)
+              cp src-tauri/target/release/bundle/appimage/*.AppImage \
+                 "dist/LlamaDock_${VERSION}_linux-bundled-portable.AppImage"
+              ;;
+            linux-system)
+              tar -czf "dist/LlamaDock_${VERSION}_linux-system-portable.tar.gz" \
+                  -C src-tauri/target/release llamadock
+              ;;
+          esac
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "llama.cpp 中控台 ${{ github.ref_name }}"
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+          name: LlamaDock_${{ steps.version.outputs.value }}_${{ matrix.target }}-portable
+          if-no-files-found: error
+          path: dist/*
+
+      # tag 触发时创建草稿 Release 并附上产物；
+      # 手动触发（workflow_dispatch）只构建产物，不创建 Release。
+      - name: 创建草稿 Release 并附加产物
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          tag="${{ github.ref_name }}"
+          printf '%s\n' \
+            '## 下载（免安装，解压即用）' \
+            '' \
+            '| 平台 | 文件 | 说明 |' \
+            '| --- | --- | --- |' \
+            "| Windows | LlamaDock_${VERSION}_windows-portable.exe | 单文件，双击即用；需系统 WebView2（Win10 1803+ / Win11 自带） |" \
+            "| macOS | LlamaDock_${VERSION}_macos-arm64-portable.zip | **Apple Silicon（M 系列）专用**；解压得 LlamaDock.app，未签名，首次打开需右键 →「打开」 |" \
+            "| Linux | LlamaDock_${VERSION}_linux-bundled-portable.AppImage | **自带 WebKitGTK**，任意发行版可跑（约 78MB）；未装 FUSE 时用 --appimage-extract-and-run |" \
+            "| Linux | LlamaDock_${VERSION}_linux-system-portable.tar.gz | **依赖系统 WebView**，解压即用（约 7MB）；需自行安装 webkit2gtk-4.1 与 GTK3 |" \
+            '' \
+            'Linux 两个版本按需二选一：追求「一个文件跑遍所有发行版」选 bundled；不想让程序自带一整套浏览器引擎、且愿意装系统依赖的选 system。' \
+            '' \
+            'macOS 暂不提供 Intel 版本。' \
+            '' \
+            '```bash' \
+            '# Debian / Ubuntu / Kali' \
+            'sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0' \
+            '' \
+            '# Fedora' \
+            'sudo dnf install webkit2gtk4.1 gtk3' \
+            '' \
+            '# Arch' \
+            'sudo pacman -S webkit2gtk-4.1 gtk3' \
+            '```' \
+            '' \
+            '> 安装包（Windows nsis / macOS dmg / Linux deb）本轮暂不构建，配置已保留，需要时可开启。' \
+            '' \
+            '## 说明' \
+            '' \
+            '- 管理本地 llama.cpp 启动脚本的小工具：可视化编辑启动参数、切换引擎版本、在工具内启动并查看实时日志，全程不弹独立终端窗口。' \
+            '- 工具本身只是「壳」，不参与推理，不影响 llama.cpp 性能。' \
+            '- 配置随程序目录（便携模式），不污染系统环境。' \
+            > release-notes.md
+          # 同一 tag 的四个平台 job 并发跑，Release 只允许建一次：
+          # 已存在时同步一次说明（否则重跑会沿用旧正文），再追加产物
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag 已存在，同步说明并追加产物"
+            gh release edit "$tag" --title "LlamaDock $tag" --notes-file release-notes.md
+          else
+            gh release create "$tag" --draft --title "LlamaDock $tag" --notes-file release-notes.md \
+              || gh release view "$tag" >/dev/null 2>&1
+          fi
+          gh release upload "$tag" dist/* --clobber
+          # 清理旧命名遗留的附件（--clobber 只覆盖同名文件，改过命名后旧文件会一直留着）
+          for name in $(gh release view "$tag" --json assets --jq '.assets[].name'); do
+            [ -f "dist/$name" ] && continue
+            case "$name" in
+              LlamaDock_*)
+                echo "清理过期附件：$name"
+                gh release delete-asset "$tag" "$name" -y
+                ;;
+            esac
+          done
