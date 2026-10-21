@@ -172,13 +172,20 @@ jobs:
               || gh release view "$tag" >/dev/null 2>&1
           fi
           gh release upload "$tag" dist/* --clobber
-          # 清理旧命名遗留的附件（--clobber 只覆盖同名文件，改过命名后旧文件会一直留着）
+          # 清理旧命名遗留的附件（--clobber 只覆盖同名文件，改过命名后旧文件会一直留着）。
+          # 注意：不能用「是否在 dist/ 里」判断——四个平台 job 并发跑，彼此看不到对方的产物，
+          # 那样会误删同一次运行里其他平台刚上传的附件。这里只认本次四产物的白名单。
+          expected="LlamaDock_${VERSION}_windows-portable.exe
+          LlamaDock_${VERSION}_macos-arm64-portable.zip
+          LlamaDock_${VERSION}_linux-bundled-portable.AppImage
+          LlamaDock_${VERSION}_linux-system-portable.tar.gz"
           for name in $(gh release view "$tag" --json assets --jq '.assets[].name'); do
-            [ -f "dist/$name" ] && continue
             case "$name" in
               LlamaDock_*)
-                echo "清理过期附件：$name"
-                gh release delete-asset "$tag" "$name" -y
+                if ! printf '%s\n' "$expected" | grep -qxF "$name"; then
+                  echo "清理过期附件：$name"
+                  gh release delete-asset "$tag" "$name" -y
+                fi
                 ;;
             esac
           done
