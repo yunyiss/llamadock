@@ -11,6 +11,7 @@ pub mod config;
 pub mod engine;
 pub mod process;
 pub mod script;
+pub mod system;
 pub mod workspace;
 
 /// 连通性检查：验证前后端 IPC 通路（P0 阶段用于联调）。

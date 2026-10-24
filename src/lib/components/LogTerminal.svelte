@@ -8,7 +8,7 @@
   import { clearLogs, logPanel, logsTick, readLogs, workspace } from "$lib/stores/workspace.svelte";
   import { newCursor, type LogCursor } from "$lib/log-buffer";
   import { TERMINAL_THEME, theme } from "$lib/theme.svelte";
-  import { openUrl } from "$lib/ipc";
+  import { exportLog, openUrl } from "$lib/ipc";
 
   const COLLAPSED = 40;
   const MIN_HEIGHT = 40;
@@ -214,16 +214,29 @@
     atBottom = true;
   }
 
-  async function copyLog() {
-    if (!term) return;
-    term.selectAll();
-    const text = term.getSelection();
-    term.clearSelection();
+  /** 把当前脚本的日志导出为 txt（含已滚出可视区的部分，上限为该脚本的缓冲容量）。 */
+  async function exportLogFile() {
+    const path = workspace.selected;
+    if (!path) return;
+
+    const { text } = readLogs(path, newCursor());
+    if (!text) {
+      notice = "暂无日志可导出";
+      return;
+    }
+
+    const base = path.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, "") ?? "log";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const now = new Date();
+    const stamp =
+      `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+      `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
     try {
-      await navigator.clipboard.writeText(text);
-      notice = "已复制日志";
-    } catch {
-      notice = "复制失败，请手动选择复制";
+      const saved = await exportLog(`${base}-${stamp}.txt`, text);
+      notice = saved ? `已导出 ${saved.split(/[\\/]/).pop()}` : "";
+    } catch (e) {
+      notice = String(e);
     }
   }
 </script>
@@ -244,7 +257,7 @@
     {#if notice}<span class="notice">{notice}</span>{/if}
     <div class="right">
       <button class="chip" type="button" onclick={clearLog}>清空</button>
-      <button class="chip" type="button" onclick={() => void copyLog()}>复制</button>
+      <button class="chip" type="button" onclick={() => void exportLogFile()}>导出</button>
     </div>
   </div>
 

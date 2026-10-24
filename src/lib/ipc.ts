@@ -27,6 +27,11 @@ export function saveTheme(theme: string): Promise<void> {
   return invoke<void>("save_theme", { theme });
 }
 
+/** 弹出保存对话框导出日志；取消时返回 null。 */
+export function exportLog(name: string, content: string): Promise<string | null> {
+  return invoke<string | null>("export_log", { name, content });
+}
+
 /** 扫描当前工作目录下的脚本。 */
 export function scanScripts(): Promise<ScriptEntry[]> {
   return invoke<ScriptEntry[]>("scan_scripts");

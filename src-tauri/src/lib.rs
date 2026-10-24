@@ -35,6 +35,7 @@ pub fn run() {
             commands::engine::switch_engine_all,
             commands::process::start_process,
             commands::process::stop_process,
+            commands::system::export_log,
             watch::watch_dir,
         ])
         .run(tauri::generate_context!())
