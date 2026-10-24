@@ -6,7 +6,8 @@ use crate::parser::{self, rebuild};
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 
-const SCRIPT_EXTS: [&str; 3] = ["cmd", "bat", "sh"];
+/// 批量切换时参与扫描的脚本类型：与工作目录扫描保持一致（含 PowerShell）。
+const SCRIPT_EXTS: [&str; 4] = ["cmd", "bat", "sh", "ps1"];
 
 /// 已保存的引擎版本列表。
 #[tauri::command]
