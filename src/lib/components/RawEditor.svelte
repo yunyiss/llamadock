@@ -94,6 +94,6 @@
   }
   .editor :global(.cm-editor) {
     height: 100%;
-    font-size: 12px;
+    font-size: 13px;
   }
 </style>
