@@ -54,8 +54,10 @@ async function syncWindowTheme(next: Scheme | null): Promise<void> {
   try {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     await getCurrentWindow().setTheme(next);
-  } catch {
-    /* 浏览器环境或平台不支持时忽略 */
+  } catch (error) {
+    // 最常见的原因是 capabilities 未授予 core:window:allow-set-theme；
+    // 浏览器预览时没有 window 接口，也会走到这里。
+    console.warn("[theme] 同步原生窗口外观失败", error);
   }
 }
 
