@@ -1,6 +1,6 @@
 [package]
 name = "llamadock"
-version = "0.1.0"
+version = "0.1.1"
 description = "LlamaDock —— llama.cpp 启动脚本可视化管理工具"
 authors = ["wbai"]
 license = "MIT"
