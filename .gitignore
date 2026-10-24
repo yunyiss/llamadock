@@ -20,6 +20,7 @@ Thumbs.db
 
 # 本地配置（便携模式生成的配置不纳入版本控制）
 config.json
+llamadock.config.json
 
 # 本地文档（不上传仓库）
 需求.md

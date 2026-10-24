@@ -58,19 +58,22 @@ impl Config {
     }
 }
 
+/// 配置文件文件名：带工具名，避免与目录里其它程序的 config.json 混淆。
+const CONFIG_FILE: &str = "llamadock.config.json";
+
 /// 解析配置文件路径：程序目录可写则用便携模式，否则回退系统配置目录。
 fn config_path(app: &AppHandle) -> PathBuf {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            if dir.join("config.json").exists() || dir_is_writable(dir) {
-                return dir.join("config.json");
+            if dir.join(CONFIG_FILE).exists() || dir_is_writable(dir) {
+                return dir.join(CONFIG_FILE);
             }
         }
     }
     app.path()
         .app_config_dir()
-        .map(|d| d.join("config.json"))
-        .unwrap_or_else(|_| PathBuf::from("config.json"))
+        .map(|d| d.join(CONFIG_FILE))
+        .unwrap_or_else(|_| PathBuf::from(CONFIG_FILE))
 }
 
 fn dir_is_writable(dir: &Path) -> bool {
