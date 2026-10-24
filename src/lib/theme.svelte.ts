@@ -80,14 +80,9 @@ function transitionTo(scheme: Scheme): void {
   window.setTimeout(() => veil.remove(), TRANSITION_MS + 40);
 }
 
-/** 切换模式（auto → light → dark → auto），并持久化到本地缓存与配置文件。 */
-export function cycleTheme(): void {
-  const order: ThemeMode[] = ["auto", "light", "dark"];
-  const next = order[(order.indexOf(theme.mode) + 1) % order.length];
-  setMode(next);
-}
-
+/** 直接选择某个模式，并持久化到本地缓存与配置文件。 */
 export function setMode(next: ThemeMode): void {
+  if (next === theme.mode) return;
   theme.mode = next;
   try {
     localStorage.setItem(STORAGE_KEY, next);
@@ -126,24 +121,6 @@ export async function initTheme(): Promise<void> {
   } catch {
     /* 浏览器预览时没有 IPC */
   }
-}
-
-/** 主题按钮的文案：当前状态 + 点击后的结果。 */
-export function themeLabel(): string {
-  const current =
-    theme.mode === "auto"
-      ? `跟随系统（当前${theme.scheme === "dark" ? "深色" : "浅色"}）`
-      : theme.mode === "light"
-        ? "浅色"
-        : "深色";
-
-  const order: ThemeMode[] = ["auto", "light", "dark"];
-  const next = order[(order.indexOf(theme.mode) + 1) % order.length];
-  const nextText = next === "auto" ? "跟随系统" : next === "light" ? "浅色" : "深色";
-  // 跟随系统的解析结果可能与下一个固定主题同色，此时外观不会变化，注明避免误解
-  const same = resolveScheme(next) === theme.scheme ? "（外观不变）" : "";
-
-  return `主题：${current}，点击切换为${nextText}${same}`;
 }
 
 /** xterm 终端配色（CSS 变量对 canvas 无效，必须给出具体色值）。 */
