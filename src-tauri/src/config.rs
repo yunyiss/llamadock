@@ -24,6 +24,8 @@ pub struct Config {
     pub engine_paths: Vec<EnginePath>,
     /// 当前选中的引擎版本名
     pub current_engine: Option<String>,
+    /// 主题偏好：auto（跟随系统）/ light / dark；旧配置无此字段时按 auto 处理
+    pub theme: Option<String>,
 }
 
 impl Config {

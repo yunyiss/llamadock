@@ -68,7 +68,7 @@
     color: var(--muted);
   }
   .wrap.absent .label .d {
-    color: #47505f;
+    color: var(--text-dim);
   }
   .wrap.absent .ctrl {
     opacity: 0.55;
@@ -142,7 +142,7 @@
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: #06210e;
+    background: var(--switch-knob);
   }
   .switch.off {
     background: var(--surface-3);

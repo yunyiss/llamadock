@@ -22,6 +22,11 @@ export function pickWorkDir(): Promise<string | null> {
   return invoke<string | null>("pick_work_dir");
 }
 
+/** 保存主题偏好（auto / light / dark）。 */
+export function saveTheme(theme: string): Promise<void> {
+  return invoke<void>("save_theme", { theme });
+}
+
 /** 扫描当前工作目录下的脚本。 */
 export function scanScripts(): Promise<ScriptEntry[]> {
   return invoke<ScriptEntry[]>("scan_scripts");

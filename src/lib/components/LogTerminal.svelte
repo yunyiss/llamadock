@@ -7,6 +7,7 @@
   import "@xterm/xterm/css/xterm.css";
   import { clearLogs, logPanel, logsTick, readLogs, workspace } from "$lib/stores/workspace.svelte";
   import { newCursor, type LogCursor } from "$lib/log-buffer";
+  import { TERMINAL_THEME, theme } from "$lib/theme.svelte";
   import { openUrl } from "$lib/ipc";
 
   const COLLAPSED = 40;
@@ -85,7 +86,7 @@
       fontFamily: '"Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace',
       convertEol: false,
       scrollback: 1500,
-      theme: { background: "#12161d", foreground: "#8b95a7", cursor: "#8b95a7" },
+      theme: TERMINAL_THEME[theme.scheme],
     });
     term.loadAddon(fit);
     term.loadAddon(
@@ -189,6 +190,14 @@
     const tick = logPanel.expandTick;
     if (!tick) return;
     untrack(expand);
+  });
+
+  // 主题切换：canvas 内容不吃 CSS 变量，必须显式换 xterm 配色
+  const scheme = $derived(theme.scheme);
+  $effect(() => {
+    const next = TERMINAL_THEME[scheme];
+    if (!term) return;
+    term.options.theme = next;
   });
 
   function jumpToBottom() {

@@ -258,7 +258,7 @@
     cursor: pointer;
   }
   .hint:hover {
-    background: #17492a;
+    background: var(--brand-soft-hover);
   }
   .foot {
     padding: 10px 12px;

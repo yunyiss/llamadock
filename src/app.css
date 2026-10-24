@@ -1,4 +1,5 @@
-/* 全局样式：深色主题 token 与通用组件（对齐已确认的 UI 草图 ui-mockup.html）。 */
+/* 全局样式：深浅两套主题 token 与通用组件。
+   主题由 <html data-theme="dark|light"> 切换，首帧由 app.html 内联脚本写入，避免闪白/闪黑。 */
 
 :root {
   color-scheme: dark;
@@ -7,18 +8,69 @@
   --surface-2: #181e27;
   --surface-3: #1e2632;
   --border: #252d3a;
+  --border-strong: #33405a;
   --text: #e6eaf2;
   --muted: #8b95a7;
   --faint: #5d6675;
+  --text-dim: #47505f;
   --brand: #3fb950;
   --brand-soft: #123a1f;
+  --brand-soft-hover: #17492a;
   --accent: #58a6ff;
   --warn: #d29922;
   --danger: #ff7b72;
+  --dot-off: #3a4350;
+  --scrollbar-thumb: #2b3546;
+  --scrollbar-hover: #3a4658;
+  --switch-knob: #06210e;
   --radius: 8px;
   --radius-card: 12px;
   --mono: "Cascadia Code", Consolas, "SF Mono", ui-monospace, monospace;
   --sans: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #f0f3f6;
+  --surface-3: #e6ebf1;
+  --border: #d0d7de;
+  --border-strong: #afb8c1;
+  --text: #1f2328;
+  --muted: #59636e;
+  --faint: #818b98;
+  --text-dim: #8c959f;
+  --brand: #1a7f37;
+  --brand-soft: #dafbe1;
+  --brand-soft-hover: #b7f0c8;
+  --accent: #0969da;
+  --warn: #9a6700;
+  --danger: #cf222e;
+  --dot-off: #aeb6c0;
+  --scrollbar-thumb: #c9d1d9;
+  --scrollbar-hover: #afb8c1;
+  --switch-knob: #ffffff;
+}
+
+/* 主题切换的交叉淡入；不支持 View Transitions 时由 JS 用遮罩兜底 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 兜底遮罩：覆盖当前底色后淡出 */
+.theme-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 240ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.theme-veil.fade {
+  opacity: 0;
 }
 
 * {
@@ -63,7 +115,7 @@ button,
   white-space: nowrap;
 }
 .btn:hover {
-  border-color: #33405a;
+  border-color: var(--border-strong);
 }
 .btn:active {
   background: var(--surface-2);
@@ -85,7 +137,7 @@ button,
 }
 .ghost:hover {
   color: var(--text);
-  border-color: #33405a;
+  border-color: var(--border-strong);
 }
 
 /* 输入框 */
@@ -116,7 +168,7 @@ button,
   box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.15);
 }
 .dot.off {
-  background: #3a4350;
+  background: var(--dot-off);
 }
 .dot.err {
   background: var(--danger);
@@ -162,13 +214,13 @@ button,
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #2b3546;
+  background-color: var(--scrollbar-thumb);
   border: 2px solid transparent;
   background-clip: content-box;
   border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #3a4658;
+  background-color: var(--scrollbar-hover);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;

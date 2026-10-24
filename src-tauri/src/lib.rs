@@ -15,6 +15,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::ping,
             commands::config::get_config,
+            commands::config::save_theme,
             commands::workspace::pick_work_dir,
             commands::workspace::scan_scripts,
             commands::workspace::create_script,

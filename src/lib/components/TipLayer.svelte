@@ -85,7 +85,7 @@
     overflow: auto;
     padding: 10px 12px;
     background: var(--surface-3);
-    border: 1px solid #33405a;
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius);
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
     font-size: 12px;

@@ -20,6 +20,7 @@
     setRaw,
     workspace,
   } from "$lib/stores/workspace.svelte";
+  import { initTheme } from "$lib/theme.svelte";
 
   let tab = $state<"params" | "raw">("params");
   const dirty = $derived(isDirty());
@@ -27,6 +28,8 @@
   let disposeEvents: (() => void) | null = null;
 
   onMount(() => {
+    // 主题：首帧已由 app.html 内联脚本写好，这里对齐状态并监听系统主题
+    void initTheme();
     // 启动时恢复上次工作目录、订阅进程事件
     void initWorkspace();
 

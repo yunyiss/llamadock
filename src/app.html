@@ -5,6 +5,24 @@
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LlamaDock</title>
+    <!-- 首帧主题：与 theme.svelte.ts 使用同一个 localStorage key，避免启动时闪一下深色 -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("llamadock-theme");
+          var mode = stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+          var scheme =
+            mode === "auto"
+              ? window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light"
+              : mode;
+          document.documentElement.dataset.theme = scheme;
+        } catch (e) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
     %sveltekit.head%
   </head>
   <body data-sveltekit-preload-data="hover">

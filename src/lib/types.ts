@@ -19,6 +19,8 @@ export interface Config {
   recentDirs: string[];
   enginePaths: EnginePath[];
   currentEngine: string | null;
+  /** 主题偏好：auto 跟随系统 / light / dark；旧配置可能没有该字段 */
+  theme?: "auto" | "light" | "dark";
 }
 
 /** 参数类型。 */
