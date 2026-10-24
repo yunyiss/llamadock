@@ -160,12 +160,18 @@ pub fn create_script(app: AppHandle, name: String, kind: String) -> Result<Strin
 }
 
 /// 用系统默认程序打开 URL（仅允许 http/https，用于日志里的链接点击）。
+///
+/// Windows 下走 ShellExecute（`open` crate 的 shellexecute-on-windows 特性）：
+/// URL 只作为数据传入，不经 cmd 解析（避免 `&` 之类的元字符被当成命令），
+/// 且失败会返回真实错误，不会出现"点了没反应"。
+/// 不用 crate 默认的 PowerShell 启动器：它只看 PowerShell 进程有没有起来，
+/// 脚本执行失败时仍返回成功，用户在界面上看不到任何反馈。
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err("仅支持 http/https 链接".to_string());
     }
-    platform::open_url(&url)
+    open::that_detached(&url).map_err(|e| format!("打开链接失败：{e}"))
 }
 
 /// 判断路径是否存在（用于引擎 / 模型失效提示）。

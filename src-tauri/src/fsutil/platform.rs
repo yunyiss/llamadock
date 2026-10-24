@@ -1,4 +1,6 @@
 //! 平台相关：隐藏控制台窗口的命令构造、在文件管理器中打开目录。
+//!
+//! 打开链接统一走 `open` crate（Windows 下 ShellExecute），不要用 `cmd /C start`——那会把 URL 交给 cmd 解析。
 
 use std::path::Path;
 use std::process::Command;
@@ -13,32 +15,6 @@ pub fn hidden_command(program: &str) -> Command {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
     cmd
-}
-
-/// 用系统默认程序打开 URL。
-pub fn open_url(url: &str) -> Result<(), String> {
-    #[cfg(windows)]
-    let mut cmd = {
-        let mut c = hidden_command("cmd");
-        c.args(["/C", "start", "", url]);
-        c
-    };
-    #[cfg(target_os = "macos")]
-    let mut cmd = {
-        let mut c = hidden_command("open");
-        c.arg(url);
-        c
-    };
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut cmd = {
-        let mut c = hidden_command("xdg-open");
-        c.arg(url);
-        c
-    };
-
-    cmd.spawn()
-        .map(|_| ())
-        .map_err(|e| format!("打开链接失败：{e}"))
 }
 
 /// 在系统文件管理器中打开目录。
