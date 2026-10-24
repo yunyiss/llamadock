@@ -13,6 +13,21 @@
   let host: HTMLDivElement;
   let view: EditorView | undefined;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  // 程序化写入（外部同步）期间为 true：这不算用户编辑，不能上报 onChange
+  let syncing = false;
+
+  /**
+   * 保留原文件的换行风格。
+   *
+   * CodeMirror 默认按 "\n" 序列化文档，CRLF 脚本（cmd / ps1 模板都是 CRLF）
+   * 一进编辑器就会被改成 LF，于是「只打开原始脚本、什么都没改」也会被判成有改动，
+   * 切换脚本时就会误弹「保留改动」，保存还会把行尾全改掉。
+   */
+  function detectLineBreak(text: string): string {
+    if (text.includes("\r\n")) return "\r\n";
+    if (text.includes("\r")) return "\r";
+    return "\n";
+  }
 
   // 主题用 Compartment 动态重配置：浅色去掉 oneDark 并用现有 token 着色
   const themeCompartment = new Compartment();
@@ -45,14 +60,17 @@
         extensions: [
           basicSetup,
           StreamLanguage.define(shell),
+          // 按原文件的换行风格序列化，避免 CRLF 被悄悄改成 LF
+          EditorState.lineSeparator.of(detectLineBreak(initial)),
           themeCompartment.of(themeExtension(theme.scheme)),
           EditorView.theme({
             "&": { height: "100%" },
             ".cm-scroller": { overflow: "auto" },
           }),
           EditorView.updateListener.of((update) => {
-            if (!update.docChanged) return;
-            const text = update.state.doc.toString();
+            if (!update.docChanged || syncing) return;
+            // sliceDoc 走 lineSeparator facet，保留 CRLF；doc.toString() 会强制用 LF
+            const text = update.state.sliceDoc();
             if (timer) clearTimeout(timer);
             timer = setTimeout(() => onChange(text), 250);
           }),
@@ -71,9 +89,15 @@
   $effect(() => {
     const next = initial;
     if (!view) return;
-    const current = view.state.doc.toString();
+    // 用 sliceDoc 比较：它按原换行风格输出，不会把 CRLF 看成「内容变了」
+    const current = view.state.sliceDoc();
     if (current === next) return;
-    view.dispatch({ changes: { from: 0, to: current.length, insert: next } });
+    syncing = true;
+    try {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } });
+    } finally {
+      syncing = false;
+    }
   });
 
   // 主题切换时重配置编辑器配色
