@@ -38,10 +38,11 @@ impl ScriptKind {
 
     /// 行尾是否为续行符。
     ///
-    /// 三种 shell 都要求续行符紧贴行尾；这里额外容忍行尾空白（手写脚本常见），
-    /// 以免把本该续行的脚本判成两段。
+    /// 必须紧贴行尾，后面不能有空格：cmd 的 `^ ` 转义的是那个空格（换行不会被吃掉），
+    /// sh 的 `\ ` 是转义空格，PowerShell 的反引号后跟空格同样不续行。
+    /// 宽松判断会把实际不续行的两行拼成一条，面板里就会出现运行时并不生效的参数。
     pub fn ends_with_continuation(self, line: &str) -> bool {
-        line.trim_end().ends_with(self.continuation_byte() as char)
+        line.ends_with(self.continuation_byte() as char)
     }
 
     /// 去掉行尾的续行符与多余空白。
@@ -175,4 +176,39 @@ pub fn locate(text: &str, kind: ScriptKind) -> Option<LaunchLine> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn caret_at_line_end_continues() {
+        let text = "llama-server.exe ^\n  --port 8080\n";
+        let launch = locate(text, ScriptKind::Cmd).expect("应识别到启动行");
+        assert!(launch.tokens.iter().any(|t| t.text == "--port"));
+    }
+
+    #[test]
+    fn caret_with_trailing_space_does_not_continue() {
+        // cmd 里 `^ ` 转义的是那个空格，换行没有被吃掉：第二行是另一条命令
+        let text = "llama-server.exe -m a.gguf ^ \n  --port 8080\n";
+        let launch = locate(text, ScriptKind::Cmd).expect("应识别到启动行");
+        assert!(launch.tokens.iter().all(|t| t.text != "--port"));
+    }
+
+    #[test]
+    fn backslash_with_trailing_space_does_not_continue() {
+        // sh 里 `\ ` 是转义空格，不是续行
+        let text = "llama-server -m a.gguf \\ \n  --port 8080\n";
+        let launch = locate(text, ScriptKind::Sh).expect("应识别到启动行");
+        assert!(launch.tokens.iter().all(|t| t.text != "--port"));
+    }
+
+    #[test]
+    fn backtick_at_line_end_continues() {
+        let text = "llama-server.exe `\n  --port 8080\n";
+        let launch = locate(text, ScriptKind::PowerShell).expect("应识别到启动行");
+        assert!(launch.tokens.iter().any(|t| t.text == "--port"));
+    }
 }
