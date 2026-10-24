@@ -61,43 +61,57 @@
     <ScriptList />
 
     <main class="main">
-      <nav class="tabs">
-        <button
-          class="tab"
-          class:active={tab === "params"}
-          type="button"
-          onclick={() => openTab("params")}
-        >
-          参数面板
-        </button>
-        <button class="tab" class:active={tab === "raw"} type="button" onclick={() => openTab("raw")}>
-          原始脚本
-        </button>
-        <div class="right">
-          {#if workspace.error}
-            <span class="err" title={workspace.error}>{workspace.error}</span>
-          {/if}
-          <button class="ghost" type="button" disabled={!dirty} onclick={prepareSave}>保存</button>
+      {#if !workspace.workDir}
+        <div class="welcome">
+          <h2>开始使用 LlamaDock</h2>
+          <p class="lead">
+            LlamaDock 管理本地的 llama.cpp 启动脚本（<code>.cmd</code> / <code>.bat</code> / <code>.sh</code> / <code>.ps1</code>）：可视化编辑参数、切换引擎版本、在工具内启动并查看实时日志。
+          </p>
+          <ol>
+            <li>在左侧点选脚本，右侧会列出它已有的参数</li>
+            <li>点底部「启动」，日志会在下方自动展开</li>
+          </ol>
+          <p class="hint">配置文件在当前路径下（llamadock.config.json）</p>
         </div>
-      </nav>
-
-      {#if tab === "params"}
-        <ParamPanel />
-      {:else if !workspace.selected}
-        <div class="placeholder">从左侧选择一个脚本</div>
-      {:else if !workspace.baseText}
-        <div class="placeholder">加载中…</div>
       {:else}
-        {#await loadRawEditor()}
-          <div class="placeholder">加载编辑器…</div>
-        {:then RawEditor}
-          {#key workspace.selected}
-            <RawEditor
-              initial={workspace.draft ?? workspace.baseText}
-              onChange={(text) => void setRaw(text)}
-            />
-          {/key}
-        {/await}
+        <nav class="tabs">
+          <button
+            class="tab"
+            class:active={tab === "params"}
+            type="button"
+            onclick={() => openTab("params")}
+          >
+            参数面板
+          </button>
+          <button class="tab" class:active={tab === "raw"} type="button" onclick={() => openTab("raw")}>
+            原始脚本
+          </button>
+          <div class="right">
+            {#if workspace.error}
+              <span class="err" title={workspace.error}>{workspace.error}</span>
+            {/if}
+            <button class="ghost" type="button" disabled={!dirty} onclick={prepareSave}>保存</button>
+          </div>
+        </nav>
+
+        {#if tab === "params"}
+          <ParamPanel />
+        {:else if !workspace.selected}
+          <div class="placeholder">从左侧选择一个脚本</div>
+        {:else if !workspace.baseText}
+          <div class="placeholder">加载中…</div>
+        {:else}
+          {#await loadRawEditor()}
+            <div class="placeholder">加载编辑器…</div>
+          {:then RawEditor}
+            {#key workspace.selected}
+              <RawEditor
+                initial={workspace.draft ?? workspace.baseText}
+                onChange={(text) => void setRaw(text)}
+              />
+            {/key}
+          {/await}
+        {/if}
       {/if}
 
       <LogTerminal />
@@ -179,5 +193,44 @@
     place-items: center;
     color: var(--faint);
     font-size: 12px;
+  }
+  .welcome {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+  .welcome h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .welcome .lead {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+  .welcome ol {
+    margin: 4px 0 8px;
+    padding-left: 20px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 22px;
+  }
+  .welcome code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface-3);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .welcome .hint {
+    color: var(--faint);
+    font-size: 11px;
   }
 </style>
