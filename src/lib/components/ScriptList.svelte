@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { workspace, refreshScripts, chooseWorkDir, selectScript } from "$lib/stores/workspace.svelte";
+  import { workspace, refreshScripts, chooseWorkDir, requestSelect } from "$lib/stores/workspace.svelte";
   import { openFolder, createScript } from "$lib/ipc";
 
   let query = $state("");
@@ -33,7 +33,7 @@
     try {
       const path = await createScript(newName, newKind);
       await refreshScripts();
-      await selectScript(path);
+      await requestSelect(path);
       creating = false;
     } catch (e) {
       createError = String(e);
@@ -74,7 +74,7 @@
           class="item"
           class:active={workspace.selected === s.path}
           type="button"
-          onclick={() => selectScript(s.path)}
+          onclick={() => void requestSelect(s.path)}
         >
           <span class="dot off"></span>
           <span class="meta">

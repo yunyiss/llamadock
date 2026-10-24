@@ -12,10 +12,13 @@
   import {
     applyEdits,
     cancelSave,
+    cancelSwitch,
     commitSave,
+    discardAndSwitch,
     initProcessEvents,
     initWorkspace,
     isDirty,
+    keepAndSwitch,
     prepareSave,
     setRaw,
     workspace,
@@ -24,6 +27,7 @@
 
   let tab = $state<"params" | "raw">("params");
   const dirty = $derived(isDirty());
+  const currentName = $derived(workspace.selected?.split(/[\\/]/).pop() ?? "");
 
   let disposeEvents: (() => void) | null = null;
 
@@ -131,6 +135,22 @@
   />
 {/if}
 
+{#if workspace.switchPrompt}
+  <div class="overlay">
+    <div class="dialog-sm" role="dialog" aria-modal="true" aria-label="切换脚本">
+      <p class="ask">
+        「{currentName}」还有未保存的改动。切换到「{workspace.switchPrompt.name}」前要保留这些改动吗？
+      </p>
+      <p class="ask-tip">选择「保留改动」会先记在本地，切回该脚本时自动恢复，不会写盘。</p>
+      <div class="ask-foot">
+        <button class="ghost" type="button" onclick={cancelSwitch}>取消</button>
+        <button class="ghost" type="button" onclick={discardAndSwitch}>放弃改动</button>
+        <button class="btn" type="button" onclick={keepAndSwitch}>保留改动并切换</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .app {
     height: 100%;
@@ -232,5 +252,38 @@
   .welcome .hint {
     color: var(--faint);
     font-size: 11px;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 20;
+  }
+  .dialog-sm {
+    width: min(420px, 88vw);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 18px 20px 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  }
+  .ask {
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--text);
+  }
+  .ask-tip {
+    margin-top: 8px;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--faint);
+  }
+  .ask-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
   }
 </style>

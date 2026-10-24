@@ -52,6 +52,8 @@ export const workspace = $state({
   error: null as string | null,
   /** 工作目录有变化，提示刷新 */
   scriptsStale: false,
+  /** 切换脚本时，当前脚本有未保存改动的确认（目标脚本路径与名称） */
+  switchPrompt: null as { path: string; name: string } | null,
 });
 
 /** 单个脚本的运行态。 */
@@ -149,20 +151,87 @@ export async function chooseWorkDir(): Promise<void> {
   const dir = await pickWorkDir();
   if (!dir) return;
   workspace.workDir = dir;
+  drafts.clear();
+  workspace.switchPrompt = null;
   resetSelection();
   await watchDir(dir).catch(() => undefined);
   await refreshScripts();
 }
 
+/**
+ * 每个脚本的未保存草稿。
+ *
+ * 切换脚本时若选择「保留改动」，就把草稿记在这里；下次切回该脚本时恢复，
+ * 相当于按脚本各自暂存，而不是只能在「保存」和「丢弃」之间二选一。
+ */
+const drafts = new Map<string, { baseText: string; draft: string; edits: EditEntry[] }>();
+
+/** 切换脚本：有未保存的改动时先弹窗询问，避免静默丢弃草稿。 */
+export async function requestSelect(path: string): Promise<void> {
+  if (path === workspace.selected) return;
+  // 参数改动有 250ms 去抖，先落成草稿再判断是否脏
+  if (rebuildTimer) {
+    clearTimeout(rebuildTimer);
+    rebuildTimer = null;
+  }
+  await applyEdits();
+
+  if (!workspace.selected || !isDirty()) {
+    await selectScript(path);
+    return;
+  }
+  workspace.switchPrompt = { path, name: path.split(/[\\/]/).pop() ?? path };
+}
+
+/** 确认弹窗：保留当前脚本的改动（暂存草稿）并切换。 */
+export function keepAndSwitch(): void {
+  const prompt = workspace.switchPrompt;
+  if (!prompt) return;
+  if (workspace.selected && workspace.baseText !== null && workspace.draft !== null) {
+    drafts.set(workspace.selected, {
+      baseText: workspace.baseText,
+      draft: workspace.draft,
+      edits: [...workspace.edits],
+    });
+  }
+  workspace.switchPrompt = null;
+  void selectScript(prompt.path);
+}
+
+/** 确认弹窗：放弃当前脚本的改动并切换。 */
+export function discardAndSwitch(): void {
+  const prompt = workspace.switchPrompt;
+  if (!prompt) return;
+  if (workspace.selected) drafts.delete(workspace.selected);
+  workspace.switchPrompt = null;
+  void selectScript(prompt.path);
+}
+
+/** 关闭切换确认弹窗。 */
+export function cancelSwitch(): void {
+  workspace.switchPrompt = null;
+}
+
 /** 选中脚本：解析并记录磁盘基准文本。 */
 export async function selectScript(path: string): Promise<void> {
-  workspace.selected = path;
   resetSelection();
   workspace.selected = path;
   try {
     const model = await parseScript(path);
     workspace.model = model;
     workspace.baseText = model.raw;
+
+    // 切回来时恢复之前保留的草稿；磁盘已被外部改动过则丢弃这份暂存
+    const stash = drafts.get(path);
+    if (stash) {
+      if (stash.baseText === model.raw) {
+        workspace.draft = stash.draft;
+        workspace.edits = [...stash.edits];
+        workspace.model = await parseText(path, stash.draft);
+      } else {
+        drafts.delete(path);
+      }
+    }
   } catch (e) {
     workspace.error = String(e);
   }
@@ -402,6 +471,7 @@ export async function commitSave(): Promise<boolean> {
   try {
     await saveScript(path, pending.newText, workspace.baseText);
     workspace.pending = null;
+    drafts.delete(path);
     resetSelection();
     await selectScript(path);
     return true;
